@@ -1,0 +1,32 @@
+package templates
+
+// ImportDumpForm is GET /new/import-dump — upload pg_dump custom (-Fc) or plain SQL.
+templ ImportDumpForm(prefill, errMsg string) {
+	@Layout("cnpg-portal — import from dump") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href="/new">Create tenant</a></li>
+				<li>Import dump</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Import tenant from dump</header>
+			<p><small>Upload an uncompressed <code>pg_dump -Fc</code> file or plain <code>.sql</code>. Large uploads may require increasing <code>cnpgctl serve --read-timeout</code>.</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			<form method="post" action="/new/import-dump" enctype="multipart/form-data">
+				<label>
+					App / tenant name
+					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefill } placeholder="evs_import"/>
+				</label>
+				<label>
+					Dump file
+					<input name="dump" type="file" required/>
+				</label>
+				<button type="submit">Provision and restore</button>
+			</form>
+		</article>
+	}
+}

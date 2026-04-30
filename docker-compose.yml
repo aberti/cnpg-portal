@@ -1,0 +1,72 @@
+# cnpg-portal — daily-driver runtime on a tailnet host.
+#
+# Bring it up:    pgm-up      (= docker compose up -d)
+# Bring it down:  pgm-down    (= docker compose down)
+# Tail logs:      pgm-log     (= docker compose logs -f --tail=200)
+# Upgrade:        pgm-pull    (= docker compose pull && docker compose up -d)
+#
+# `tailscale serve --bg 8080` on the host forwards
+# https://<host>.<tailnet>.ts.net -> 127.0.0.1:8080 (this container's port).
+# See ADR-0004 for the design rationale.
+
+services:
+  cnpg-portal:
+    image: ghcr.io/aberti/cnpg-portal:latest
+    # Image is published as a public package (the source repo is private).
+    # First push out of CI is private by default; flip with:
+    #   gh api -X PATCH /user/packages/container/cnpg-portal -f visibility=public
+    # `pull_policy: missing` lets `make image` (local builds) take effect
+    # without compose insisting on a registry pull on every `up`. Use
+    # `pgm-pull` (= docker compose pull && up -d) to fetch newer :latest
+    # from ghcr.io explicitly.
+    pull_policy: missing
+    network_mode: host
+    restart: unless-stopped
+    # Run as the host's daily-driver UID so the bind-mounted age key,
+    # kubeconfig, and env file (mode 0600 on the host) are readable AND
+    # so SOPS files written into /workspace/secrets/pg/ are owned by
+    # the host user, not nonroot uid 65532. Override the Dockerfile's
+    # USER for this single-user tool; container is host-isolated only by
+    # process boundary anyway since we use --network host.
+    user: "1000:1000"
+    # PG_REPO_TOKEN for the PR-bot lives here; mode 0600 on the host.
+    env_file:
+      - ${HOME}/.config/cnpg-portal/env
+    environment:
+      SOPS_AGE_KEY_FILE: /run/secrets/age.key
+      KUBECONFIG: /run/secrets/kubeconfig
+    # Default is HEADER-AUTH ONLY — every request must carry a
+    # Tailscale-User-Login header (typically injected by `tailscale serve`).
+    # Without that, every request returns 403.
+    #
+    # If your ingress doesn't inject identity headers (laptop testing, Traefik,
+    # private network without tailscale serve, etc.), copy
+    # docker-compose.override.yml.example -> docker-compose.override.yml and
+    # uncomment ONE of the auth options there:
+    #   --dev-login=<your-email>      (single label for all requests)
+    #   --tailnet-fallback-login=...  (any tailnet IP becomes that login)
+    #   --bearer-token-file=...       (Authorization: Bearer)
+    # PAIR any of those with --admin-list-path so mutations are gated to
+    # an explicit allow-list — without --admin-list-path the binary takes
+    # a "dev convenience" fallback that auto-admins the dev-login email.
+    command:
+      - serve
+      - --addr=127.0.0.1:8080
+      - --workspace=/workspace
+      - --kubeconfig=/run/secrets/kubeconfig
+      - --log-format=json
+    volumes:
+      # Workspace: writable so the tenant verbs can patch cluster.yaml +
+      # add/remove SOPS-encrypted Secret files. Source of truth on host.
+      - ${HOME}/Projects/Abersite/PG:/workspace
+      # Age private key: read-only, in-process SOPS decrypt only.
+      - ${HOME}/.sops.age.key:/run/secrets/age.key:ro
+      # Kubeconfig: read-only. Points at 127.0.0.1:6443, served by the
+      # host SSH tunnel; --network host lets the container reach it.
+      - ${HOME}/Projects/Abersite/PG/.kube/config:/run/secrets/kubeconfig:ro
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/cnpgctl", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

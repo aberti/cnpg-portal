@@ -1,0 +1,121 @@
+package templates
+
+import "github.com/aberti/cnpg-portal/internal/tenant"
+
+templ BranchTenantForm(src, defaultDst, errMsg string) {
+	@Layout("cnpg-portal — branch tenant") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ templ.URL("/tenant/" + src) } hx-boost="true">{ src }</a></li>
+				<li>Branch</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Branch tenant</header>
+			<p><small>Clone database contents from <code>{ src }</code> into a new tenant.</small></p>
+			<p><small>Names must be lowercase, start with a letter, and use only letters, digits, and underscore (max 63 characters).</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			<form method="post" action={ templ.URL("/tenant/" + src + "/branch") }>
+				<label>
+					Destination tenant
+					<input name="dst" type="text" required minlength="1" maxlength="63" value={ defaultDst } placeholder={ defaultDst } autocomplete="off"/>
+				</label>
+				<button type="submit">Branch now</button>
+			</form>
+		</article>
+	}
+}
+
+templ BranchTenantCreated(src string, t *tenant.Tenant) {
+	@Layout("cnpg-portal — branch complete") {
+		<article>
+			<header>Branch complete</header>
+			@kv("source", src)
+			@kv("destination", t.Name)
+			@kv("secret", t.SecretName)
+			<p><small>Handle this as a secret. It is shown once and not persisted in UI state.</small></p>
+			<pre><code>{ t.DatabaseURL }</code></pre>
+			<p><a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true">Open destination details</a></p>
+		</article>
+	}
+}
+
+templ DropTenantForm(app, errMsg string) {
+	@Layout("cnpg-portal — drop tenant") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ templ.URL("/tenant/" + app) } hx-boost="true">{ app }</a></li>
+				<li>Drop</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Drop tenant <code>{ app }</code></header>
+			<p><small>This is destructive: database, role, and credential Secret are removed.</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			<form method="post" action={ templ.URL("/tenant/" + app + "/drop") }>
+				<label>
+					Type tenant name to confirm
+					<input name="confirm" type="text" required placeholder={ app }/>
+				</label>
+				<button type="submit" class="secondary">Drop tenant</button>
+			</form>
+		</article>
+	}
+}
+
+templ DropTenantDone(app string) {
+	@Layout("cnpg-portal — tenant dropped") {
+		<article>
+			<header>Tenant dropped</header>
+			@kv("app", app)
+			<p><small>S3 backups are not purged by this action.</small></p>
+			<p><a href="/" hx-boost="true">Back to tenants</a></p>
+		</article>
+	}
+}
+
+templ RotateTenantForm(app, errMsg string) {
+	@Layout("cnpg-portal — rotate credentials") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ templ.URL("/tenant/" + app) } hx-boost="true">{ app }</a></li>
+				<li>Rotate</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Rotate credentials for <code>{ app }</code></header>
+			<p><small>Generates a new password, applies <code>ALTER ROLE</code> on pg-primary, updates the in-cluster Secret, and re-encrypts the SOPS file in the workspace. Apps still running with the old password will fail to reconnect — restart them after committing the new SOPS file.</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			<form method="post" action={ templ.URL("/tenant/" + app + "/rotate") }>
+				<label>
+					Type tenant name to confirm
+					<input name="confirm" type="text" required placeholder={ app } autocomplete="off"/>
+				</label>
+				<button type="submit" class="contrast">Rotate password</button>
+			</form>
+		</article>
+	}
+}
+
+templ RotateTenantDone(t *tenant.Tenant) {
+	@Layout("cnpg-portal — credentials rotated") {
+		<article>
+			<header>Credentials rotated</header>
+			@kv("app", t.Name)
+			@kv("secret", t.SecretName)
+			<p><small>Handle this URL as a secret. It is shown once and not persisted in UI state.</small></p>
+			<pre><code>{ t.DatabaseURL }</code></pre>
+			<p><small>Commit the updated SOPS file in <code>secrets/pg/</code> to keep GitOps in sync. Restart the consuming app to pick up the new password.</small></p>
+			<p><a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true">Back to tenant</a></p>
+		</article>
+	}
+}

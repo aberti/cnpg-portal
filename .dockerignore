@@ -1,0 +1,37 @@
+# Defence in depth: only the COPY --from=builder line in Dockerfile lands
+# in the final image, so source files are not pushed. This file keeps
+# build contexts lean and protects against any future single-stage refactor.
+
+# Build artefacts
+/bin/
+/dist/
+*.test
+*.out
+coverage.txt
+
+# VCS + CI state
+.git/
+.github/
+
+# Editor / OS / IDE
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Local credentials and dumps that must NEVER reach an image layer
+docs/db-users.json
+.env
+.env.*
+.envrc
+*.age.key
+.sops.age.key
+.kube/
+
+# OMC / agent harness state
+.omc/
+.claude/
+
+# tmp + cache
+/tmp/
+node_modules/

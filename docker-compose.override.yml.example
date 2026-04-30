@@ -1,0 +1,60 @@
+# Local Compose override template.
+#
+# Docker Compose auto-merges `docker-compose.override.yml` (gitignored)
+# on top of `docker-compose.yml` IF you run compose from this directory
+# without `-f`. The shipped pgm-up bashrc helper does this correctly via
+# `cd`. If you write your own helper, do NOT pass `-f docker-compose.yml`
+# alone — that bypasses override-merge.
+#
+# Copy this file:
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# Then edit values for your host. After editing, run `pgm-up` (or
+# `docker compose up -d --force-recreate`) to apply.
+#
+# SECURITY NOTE: the upstream docker-compose.yml has NO auth bypass set
+# — every request needs a Tailscale-User-Login header (or 403). If you
+# uncomment --dev-login below, ALSO uncomment --admin-list-path; otherwise
+# the binary takes a "laptop dev" fallback that auto-admins the dev-login
+# email — i.e., anyone reachable on :8080 is admin.
+
+services:
+  cnpg-portal:
+    command:
+      - serve
+      - --addr=127.0.0.1:8080
+      - --workspace=/workspace
+      - --kubeconfig=/run/secrets/kubeconfig
+      - --log-format=json
+
+      # ---- pick ONE auth path below ----
+
+      # (a) Single dev login + explicit admin allow-list. Recommended for
+      #     single-user tailnet-only deployments (the tailnet is the
+      #     access boundary; allow-list is defense-in-depth).
+      # - --dev-login=you@example.com
+      # - --admin-list-path=/run/secrets/admins
+
+      # (b) Tailscale CGNAT fallback (no header injection, IP-based label).
+      # - --tailnet-fallback-login=you@example.com
+      # - --admin-list-path=/run/secrets/admins
+
+      # (c) Bearer token via shared secret. ALWAYS admin (no allow-list
+      #     needed — token possession is the gate). Mount the token file
+      #     in `volumes:` below.
+      # - --bearer-token-file=/run/secrets/bearer-token
+      # - --bearer-identity=you@example.com
+
+    # Uncomment + edit if your paths differ from docker-compose.yml defaults.
+    # volumes:
+    #   - /absolute/path/to/your/gitops/repo:/workspace
+    #   - /absolute/path/to/.sops.age.key:/run/secrets/age.key:ro
+    #   - /absolute/path/to/your/kubeconfig:/run/secrets/kubeconfig:ro
+    #   # admin allow-list: one email per line, mode 0600 on host
+    #   - ${HOME}/.config/cnpg-portal/admins:/run/secrets/admins:ro
+    #   # bearer-token file (option c only): random hex, mode 0600 on host
+    #   - ${HOME}/.config/cnpg-portal/bearer-token:/run/secrets/bearer-token:ro
+
+    # Uncomment if your operator UID is not 1000.
+    # user: "${UID:-1000}:${GID:-1000}"

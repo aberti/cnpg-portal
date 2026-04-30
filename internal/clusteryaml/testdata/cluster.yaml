@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-primary
+  namespace: pg
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 40Gi
+    storageClass: hcloud-volumes
+  managed:
+    roles:
+      - name: existing
+        comment: "Pre-existing role"
+        ensure: present
+        login: true
+        createdb: false
+        inherit: true
+        connectionLimit: -1
+        passwordSecret:
+          name: existing-pg-credentials

@@ -1,0 +1,52 @@
+package templates
+
+import "github.com/aberti/cnpg-portal/internal/tenant"
+
+// NewTenantForm renders the admin-only Create tenant page.
+templ NewTenantForm(prefill, errMsg string) {
+	@Layout("cnpg-portal — create tenant") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li>Create tenant</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Create tenant</header>
+			<p><small>Name must start with a letter and use lowercase letters, digits, or underscore (max 63 chars).</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			<form method="post" action="/new">
+				<label>
+					App / tenant name
+					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefill } placeholder="acme"/>
+				</label>
+				<button type="submit">Create tenant</button>
+			</form>
+			<p><small>Import instead: <a href="/new/import-dump">upload dump</a> · <a href="/new/import-url">from DATABASE_URL</a> (requires <code>pg_dump</code> where the server runs).</small></p>
+		</article>
+	}
+}
+
+// NewTenantCreated renders the one-time credentials result after a successful
+// provision call.
+templ NewTenantCreated(t *tenant.Tenant) {
+	@Layout("cnpg-portal — tenant created") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li>Tenant created</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Tenant <code>{ t.Name }</code> created</header>
+			@kv("database", t.Database)
+			@kv("role", t.Role)
+			@kv("secret", t.SecretName)
+			<p><small>Handle this as a secret. It is shown once and not persisted in UI state.</small></p>
+			<pre><code>{ t.DatabaseURL }</code></pre>
+			<p><a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true">Open tenant details</a></p>
+		</article>
+	}
+}

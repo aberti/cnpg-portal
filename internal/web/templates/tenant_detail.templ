@@ -1,0 +1,181 @@
+package templates
+
+import (
+	"fmt"
+
+	"github.com/aberti/cnpg-portal/internal/connstr"
+	"github.com/aberti/cnpg-portal/internal/tenant"
+)
+
+// TenantDetail renders the focused per-tenant view at /tenant/<app>:
+// size + connections + role attributes + last cluster-wide CNPG backup
+// + the per-format Connection strings panel (creds may be nil when the
+// in-cluster Secret is missing or RBAC is too narrow — the panel
+// degrades to a notice in that case).
+templ TenantDetail(t *tenant.Tenant, creds *tenant.Credentials, isAdmin bool) {
+	@Layout("cnpg-portal — " + t.Name) {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li>{ t.Name }</li>
+			</ul>
+		</nav>
+		<h2>{ t.Name }</h2>
+		<article>
+			<header>Database</header>
+			@kv("name", t.Database)
+			@kv("owner role", t.Owner)
+			@kv("size", tenant.FormatBytes(t.SizeBytes))
+			@kv("connections", fmt.Sprintf("%d", t.Connections))
+			if t.LastBackup != "" {
+				@kv("last cluster backup", t.LastBackup)
+			} else {
+				@kv("last cluster backup", "—")
+			}
+		</article>
+		<article>
+			<header>Role attributes</header>
+			@kv("login", boolStr(t.Login))
+			@kv("createdb", boolStr(t.CreateDB))
+			@kv("inherit", boolStr(t.Inherit))
+			@kv("connection limit", connLimitStr(t.ConnectionLimit))
+			@kv("secret", t.SecretName)
+		</article>
+		if isAdmin {
+			@connectionStrings(creds)
+			<article>
+				<header>Live activity</header>
+				<p><a href={ templ.URL("/tenant/" + t.Name + "/conns") } hx-boost="true">View active connections</a></p>
+			</article>
+		}
+		if isAdmin {
+			<article>
+				<header>Admin actions</header>
+				<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+					<a href={ templ.URL("/tenant/" + t.Name + "/branch") } role="button" class="contrast" hx-boost="true">Branch</a>
+					if hasManagedRole(t) {
+						<a href={ templ.URL("/tenant/" + t.Name + "/rotate") } role="button" class="outline" hx-boost="true">Rotate password</a>
+					}
+					<a href={ templ.URL("/tenant/" + t.Name + "/drop") } role="button" class="contrast secondary" hx-boost="true">Drop</a>
+					<a href={ templ.URL("/tenant/" + t.Name + "/restore") } role="button" class="outline" hx-boost="true">Restore from backup</a>
+				</div>
+				if !hasManagedRole(t) {
+					<p><small><em>Rotate password is hidden because this database has no dedicated user (owner: <code>{ t.Owner }</code>). Run <code>cnpgctl new { t.Name }</code> first to onboard it as a managed tenant.</em></small></p>
+				}
+			</article>
+		}
+		<article>
+			<header>CLI</header>
+			<pre><code>cnpgctl psql { t.Name }
+cnpgctl backup { t.Name }
+cnpgctl dump { t.Name } -o { t.Name }.dump
+cnpgctl branch { t.Name } { t.Name }_dev</code></pre>
+			<small>Equivalent CLI commands are kept for automation and recovery.</small>
+		</article>
+	}
+}
+
+// connectionStrings renders the six F1 formats (URL/Prisma/libpq/JDBC/env/psql). When creds
+// is nil (missing Secret, missing RBAC, ESO mid-sync), shows a degraded
+// notice that points to the runbook instead of a stack-trace 500.
+templ connectionStrings(creds *tenant.Credentials) {
+	<article>
+		<header>Connection strings</header>
+		if creds == nil {
+			<p>
+				<small>
+					Credentials Secret not readable. Either the tenant's
+					<code>*-pg-credentials</code> Secret is missing in the cluster,
+					or the cnpg-portal pod is missing <code>secrets:get</code> RBAC
+					on the <code>pg</code> namespace. 
+				</small>
+			</p>
+		} else {
+			@hostKV(creds)
+			for _, f := range connstr.All {
+				@formatBlock(f, creds.Inputs())
+			}
+		}
+	</article>
+}
+
+// hostKV is a small read-only summary of the connection coordinates so the
+// user sees host/port/db/user separately, not just buried in URLs.
+templ hostKV(c *tenant.Credentials) {
+	@kv("host", c.Host)
+	@kv("port", fmt.Sprintf("%d", c.Port))
+	@kv("database", c.Database)
+	@kv("user", c.User)
+}
+
+// formatBlock renders one connection-string format with a copy button.
+// The copy uses navigator.clipboard.writeText via a vanilla onclick — we
+// don't pull in Alpine.js for one button.
+templ formatBlock(f connstr.Format, in connstr.Inputs) {
+	<details style="margin-bottom:0.5rem;">
+		<summary><strong>{ f.Label }</strong> <small style="color:var(--pico-muted-color);">{ f.Description }</small></summary>
+		<div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:start;margin-top:0.5rem;">
+			<pre style="margin:0;overflow-x:auto;"><code>{ f.Render(in) }</code></pre>
+			<button
+				type="button"
+				class="secondary"
+				style="white-space:nowrap;padding:0.25rem 0.6rem;"
+				onclick={ copyToClipboard(f.Render(in)) }
+			>copy</button>
+		</div>
+	</details>
+}
+
+// copyToClipboard generates the inline onclick handler. templ requires a
+// templ.ComponentScript (or a string via templ.SafeURL/templ.JSExpression)
+// — building the JS as a script returns escaping for free.
+script copyToClipboard(text string) {
+	navigator.clipboard.writeText(text).then(
+		() => { event.target.textContent = "copied"; setTimeout(() => event.target.textContent = "copy", 1200); },
+		() => { event.target.textContent = "failed"; }
+	);
+}
+
+// kv renders a single label/value row using semantic <dl> grouping inside
+// the <article> body.
+templ kv(k, v string) {
+	<div style="display:grid;grid-template-columns:12rem 1fr;gap:0.25rem;align-items:baseline;">
+		<small style="color:var(--pico-muted-color);">{ k }</small>
+		<code style="background:transparent;padding:0;">{ v }</code>
+	</div>
+}
+
+// TenantNotFound renders when /tenant/<bad-name> is requested. Distinct
+// from a generic 500 because we want users following stale bookmarks to
+// see a route back to the list, not a stack trace.
+templ TenantNotFound(name string) {
+	@Layout("cnpg-portal — not found") {
+		<article>
+			<header>tenant <code>{ name }</code> not found</header>
+			<p>No database with that name exists in the CNPG cluster.</p>
+			<p><a href="/" hx-boost="true">← back to tenant list</a></p>
+		</article>
+	}
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+func connLimitStr(n int) string {
+	if n < 0 {
+		return "unlimited"
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+// hasManagedRole reports whether the database has a dedicated login role
+// that PGM can rotate / re-secret. Postgres-owned databases (CNPG bootstrap
+// defaults, raw migrated DBs) fail this check, so the UI hides actions
+// that would only fail at the cluster level.
+func hasManagedRole(t *tenant.Tenant) bool {
+	return t.Owner != "" && t.Owner != "postgres"
+}

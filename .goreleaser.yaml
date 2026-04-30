@@ -1,0 +1,56 @@
+version: 2
+
+project_name: cnpg-portal
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cnpgctl
+    main: ./cmd/cnpgctl
+    binary: cnpgctl
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/aberti/cnpg-portal/internal/version.Version={{.Version}}
+      - -X github.com/aberti/cnpg-portal/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/aberti/cnpg-portal/internal/version.BuildDate={{.Date}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: cnpgctl
+    formats: [tar.gz]
+    name_template: >-
+      cnpgctl_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ .Tag }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^chore(release):"
+      - "^docs:"
+      - "^test:"
+
+release:
+  prerelease: auto
+  draft: false

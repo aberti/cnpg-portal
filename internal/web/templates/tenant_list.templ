@@ -1,0 +1,95 @@
+package templates
+
+import (
+	"fmt"
+
+	"github.com/aberti/cnpg-portal/internal/tenant"
+)
+
+// TenantList renders the / route: every database in the CNPG cluster with
+// owner, size, live connection count, the last cluster-wide CNPG backup
+// timestamp, and a per-row Actions column.
+//
+
+// Branch and Drop mutate cluster.yaml + SOPS files in the workspace
+// workspace, which the in-cluster pod cannot do without bypassing GitOps —
+
+templ TenantList(tenants []tenant.Tenant, login string, isAdmin bool) {
+	@Layout("cnpg-portal — tenants") {
+		<div style="display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap;">
+			<hgroup>
+				<h2>Tenants <small>({ fmt.Sprintf("%d", len(tenants)) })</small></h2>
+				<p>One row per database in <code>pg-primary</code>. Last-backup column is cluster-wide (CNPG backups are not per-DB).</p>
+				<p>
+					<small>
+						Signed in as <code>{ login }</code>; role:
+						if isAdmin {
+							admin
+						} else {
+							viewer
+						}.
+					</small>
+				</p>
+			</hgroup>
+			<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+				if isAdmin {
+					<a href="/new" role="button" class="contrast" hx-boost="true">Create tenant</a>
+				}
+				@BackupStatus(true, nil, "", isAdmin)
+			</div>
+		</div>
+		if len(tenants) == 0 {
+			<article>No tenants found.</article>
+		} else {
+			<figure>
+				<table role="grid">
+					<thead>
+						<tr>
+							<th scope="col">Database</th>
+							<th scope="col">Owner</th>
+							<th scope="col">Size</th>
+							<th scope="col">Connections</th>
+							<th scope="col">Last backup (cluster)</th>
+							<th scope="col">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						for i := range tenants {
+							@tenantRow(&tenants[i], isAdmin)
+						}
+					</tbody>
+				</table>
+			</figure>
+		}
+	}
+}
+
+templ tenantRow(t *tenant.Tenant, isAdmin bool) {
+	<tr>
+		<td>
+			<a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true"><strong>{ t.Name }</strong></a>
+		</td>
+		<td>{ t.Owner }</td>
+		<td>{ tenant.FormatBytes(t.SizeBytes) }</td>
+		<td>{ fmt.Sprintf("%d", t.Connections) }</td>
+		<td>
+			if t.LastBackup == "" {
+				<em>—</em>
+			} else {
+				<code>{ t.LastBackup }</code>
+			}
+		</td>
+		<td style="white-space:nowrap;">
+			if isAdmin {
+				<a
+					href={ templ.URL("/tenant/" + t.Name + "/dump") }
+					role="button"
+					class="secondary outline"
+					title={ "Stream pg_dump -Fc for " + t.Name + " as a custom-format dump file" }
+				>Download</a>
+			} else {
+				<small style="color:var(--pico-muted-color);">—</small>
+			}
+		</td>
+	</tr>
+}

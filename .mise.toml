@@ -1,0 +1,22 @@
+# mise — pinned toolchain for PGM (PG Manager).
+# https://mise.jdx.dev/configuration.html
+#
+# Run `mise install` after cloning. Bump a version → commit → everyone picks it up.
+
+[tools]
+go              = "1.25.9"
+golangci-lint   = "2.11.4"
+goreleaser      = "2.4.8"
+gh              = "2.71.0"
+"go:github.com/a-h/templ/cmd/templ" = "0.2.793"
+"go:github.com/air-verse/air"       = "1.61.5"
+
+[env]
+# Default kubeconfig path — points at the abersite-platform sibling repo's
+# kubeconfig, mirroring the convention used in PG/.mise.toml.
+KUBECONFIG = "{{ config_root }}/../PG/.kube/config"
+# Module-local Go env — keeps GOPATH artifacts out of $HOME.
+GOFLAGS    = "-mod=mod"
+
+[settings]
+experimental = false

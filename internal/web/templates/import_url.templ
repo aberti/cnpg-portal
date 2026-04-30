@@ -1,0 +1,32 @@
+package templates
+
+// ImportURLForm is GET /new/import-url — clone from a remote postgres URL via pg_dump | pg_restore.
+templ ImportURLForm(prefillApp, errMsg string) {
+	@Layout("cnpg-portal — import from URL") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href="/new">Create tenant</a></li>
+				<li>Import from URL</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Import tenant from DATABASE_URL</header>
+			<p><small>Runs <code>pg_dump -Fc</code> on the machine running this portal, then restores into the new tenant. The pod must reach the source host and have <code>pg_dump</code> on <code>PATH</code>. Only the hostname is logged.</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			<form method="post" action="/new/import-url" autocomplete="off">
+				<label>
+					App / tenant name
+					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefillApp } placeholder="evs_import"/>
+				</label>
+				<label>
+					Source DATABASE_URL
+					<input name="database_url" type="password" required placeholder="postgres://user:pass@host:5432/dbname?sslmode=require"/>
+				</label>
+				<button type="submit">Provision and import</button>
+			</form>
+		</article>
+	}
+}

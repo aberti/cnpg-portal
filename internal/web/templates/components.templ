@@ -1,0 +1,51 @@
+package templates
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/aberti/cnpg-portal/internal/cnpg"
+)
+
+// BackupStatus is the htmx-swapped result fragment for the top-level
+// Backup button. Render states:
+//   - canTrigger=false       -> muted "admin required" message (no button)
+//   - ready=true             -> green "Trigger backup" button
+//   - err != ""              -> red message + "Retry" button
+//   - b != nil && err == ""  -> success message + "Backup again" button
+//
+// The button itself fires hx-post="/backup" with hx-disabled-elt so the
+// user can't double-click during the ~30–90s wait. CNPG backups are
+// cluster-wide, not per-tenant, so this lives in the page header.
+templ BackupStatus(ready bool, b *cnpg.Backup, err string, canTrigger bool) {
+	<div id="backup-status" style="display:flex;gap:1rem;align-items:center;">
+		if !canTrigger {
+			<small style="color:var(--pico-color-zinc-500);">Backup is admin-only.</small>
+		} else if ready {
+			<button hx-post="/backup" hx-target="#backup-status" hx-swap="outerHTML" hx-disabled-elt="this" hx-indicator="#backup-spinner">
+				<span class="backup-label">Trigger backup</span>
+				<span id="backup-spinner" class="backup-indicator" aria-busy="true">Backing up… (CNPG backs up the whole cluster, ~30–90s)</span>
+			</button>
+		} else if err != "" {
+			<small style="color:var(--pico-color-red-600);">backup failed: { err }</small>
+			<button class="secondary" hx-post="/backup" hx-target="#backup-status" hx-swap="outerHTML">Retry</button>
+		} else if b != nil {
+			<small style="color:var(--pico-color-green-600);">
+				✓ { b.Name } — completed { describeBackup(b) }
+			</small>
+			<button class="secondary" hx-post="/backup" hx-target="#backup-status" hx-swap="outerHTML">Backup again</button>
+		}
+		<style>
+			.backup-indicator { display: none; }
+			.htmx-request .backup-indicator { display: inline; }
+			.htmx-request .backup-label { display: none; }
+		</style>
+	</div>
+}
+
+func describeBackup(b *cnpg.Backup) string {
+	if b == nil || b.StoppedAt.IsZero() || b.StartedAt.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf("in %s", b.StoppedAt.Sub(b.StartedAt).Round(time.Second))
+}

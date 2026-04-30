@@ -1,0 +1,72 @@
+package templates
+
+import (
+	"strconv"
+
+	"github.com/aberti/cnpg-portal/internal/tenant"
+)
+
+templ TenantConnections(name string, rows []tenant.Connection, isAdmin bool, msg string) {
+	@Layout("cnpg-portal — " + name + " connections") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ templ.URL("/tenant/" + name) } hx-boost="true">{ name }</a></li>
+				<li>Connections</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Active connections for <code>{ name }</code></header>
+			if msg != "" {
+				<p><small style="color:var(--pico-color-green-600);">{ msg }</small></p>
+			}
+			if len(rows) == 0 {
+				<p><small>No active sessions.</small></p>
+			} else {
+				<figure>
+					<table role="grid">
+						<thead>
+							<tr>
+								<th>PID</th>
+								<th>User</th>
+								<th>App</th>
+								<th>Client</th>
+								<th>State</th>
+								<th>Age</th>
+								<th>Query</th>
+								if isAdmin {
+									<th>Action</th>
+								}
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range rows {
+								<tr>
+									<td><code>{ itoa(c.PID) }</code></td>
+									<td>{ c.User }</td>
+									<td>{ c.ApplicationName }</td>
+									<td>{ c.ClientAddr }</td>
+									<td>{ c.State }</td>
+									<td>{ c.Age }</td>
+									<td><small>{ c.Query }</small></td>
+									if isAdmin {
+										<td>
+											<form method="post" action={ templ.URL("/tenant/" + name + "/conns/" + itoa(c.PID) + "/terminate") }>
+												<button type="submit" class="secondary">Terminate</button>
+											</form>
+										</td>
+									}
+								</tr>
+							}
+						</tbody>
+					</table>
+				</figure>
+			}
+			<p><a href={ templ.URL("/tenant/" + name + "/conns") } hx-boost="true">Refresh</a></p>
+		</article>
+	}
+}
+
+func itoa(n int) string {
+	return strconv.Itoa(n)
+}

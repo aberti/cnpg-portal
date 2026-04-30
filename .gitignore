@@ -1,0 +1,46 @@
+# Build output
+/bin/
+/dist/
+*.test
+*.out
+coverage.txt
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# OMC harness state — assistant-only, not part of the project
+.omc/
+.claude/
+
+# Local env
+.env
+.env.*
+!.env.example
+.envrc
+!.envrc.example
+
+# Local Compose overrides (operator email, custom paths) — never committed.
+docker-compose.override.yml
+docker-compose.override.yaml
+!docker-compose.override.yml.example
+
+# Plaintext credential dumps (e.g. pre-migration backups) — never commit.
+docs/db-users.json
+
+# Generated templ files are checked in so CI doesn't need the templ binary.
+# Run `make generate` after editing *.templ to refresh them.
+
+# Tailwind CDN dev cache
+/internal/web/static/tailwind.css
+
+# Secrets — only SOPS-encrypted may be committed
+secrets/**/*.yaml
+!secrets/**/*.sops.yaml
+!secrets/**/*.yaml.example
+*.key
+*.pem
+age.key
+.sops.age.key
+/tmp/
