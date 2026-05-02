@@ -46,7 +46,7 @@ func Provision(ctx context.Context, d Deps, app string) (*Tenant, error) {
 	}
 
 	// 2. Apply Secret in-cluster (idempotent).
-	if err := applyClusterSecret(ctx, d, secretName, password); err != nil {
+	if err := applyClusterSecret(ctx, d, secretName, app, password); err != nil {
 		return nil, fmt.Errorf("apply cluster secret: %w", err)
 	}
 	logger.Info("cluster secret applied", "secret", secretName)
@@ -116,7 +116,7 @@ func ensureSecretFile(ctx context.Context, ws *workspace.Workspace, app, secretN
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	body := buildSecretYAML(secretName, ws.Namespace, pw)
+	body := buildSecretYAML(secretName, ws.Namespace, app, pw)
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		return "", err
 	}
@@ -151,20 +151,28 @@ func parseSecretPassword(b []byte) (string, error) {
 	return "", errors.New("password field not found")
 }
 
-func buildSecretYAML(name, namespace, password string) []byte {
-	q := strings.ReplaceAll(password, "'", "''")
+// buildSecretYAML emits the SOPS-encrypted-on-disk form of a tenant credential
+// Secret. Schema is `kubernetes.io/basic-auth` with both `username` and
+// `password` keys — required by CNPG ≥ 1.25 for managed-role passwordSecrets.
+// Older Opaque-with-only-`password` secrets are grandfathered by CNPG today
+// but will break on a future operator version. New Secrets always use the
+// modern schema so a fresh tenant works on the first reconcile.
+func buildSecretYAML(name, namespace, username, password string) []byte {
+	qu := strings.ReplaceAll(username, "'", "''")
+	qp := strings.ReplaceAll(password, "'", "''")
 	return []byte(fmt.Sprintf(`apiVersion: v1
 kind: Secret
 metadata:
   name: %s
   namespace: %s
-type: Opaque
+type: kubernetes.io/basic-auth
 stringData:
+  username: '%s'
   password: '%s'
-`, name, namespace, q))
+`, name, namespace, qu, qp))
 }
 
-func applyClusterSecret(ctx context.Context, d Deps, name, password string) error {
+func applyClusterSecret(ctx context.Context, d Deps, name, username, password string) error {
 	ns := d.Workspace.Namespace
 	secrets := d.K8s.Clientset.CoreV1().Secrets(ns)
 	existing, err := secrets.Get(ctx, name, metav1.GetOptions{})
@@ -176,17 +184,26 @@ func applyClusterSecret(ctx context.Context, d Deps, name, password string) erro
 				Namespace: ns,
 				Labels:    map[string]string{"app.kubernetes.io/managed-by": "cnpg-portal"},
 			},
-			Type:       corev1.SecretTypeOpaque,
-			StringData: map[string]string{"password": password},
+			Type: corev1.SecretTypeBasicAuth,
+			StringData: map[string]string{
+				"username": username,
+				"password": password,
+			},
 		}, metav1.CreateOptions{})
 		return err
 	case err != nil:
 		return err
 	}
-	if string(existing.Data["password"]) == password {
+	// Type is immutable; legacy Opaque secrets stay Opaque (CNPG grandfathers
+	// them). Only update the credential payload if it actually changed.
+	if string(existing.Data["password"]) == password &&
+		string(existing.Data["username"]) == username {
 		return nil
 	}
-	existing.StringData = map[string]string{"password": password}
+	existing.StringData = map[string]string{
+		"username": username,
+		"password": password,
+	}
 	_, err = secrets.Update(ctx, existing, metav1.UpdateOptions{})
 	return err
 }

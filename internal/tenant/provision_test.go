@@ -53,12 +53,19 @@ func TestParseSecretPassword(t *testing.T) {
 }
 
 func TestBuildSecretYAML(t *testing.T) {
-	out := string(buildSecretYAML("acme-pg-credentials", "pg", "abc'def"))
+	out := string(buildSecretYAML("acme-pg-credentials", "pg", "acme", "abc'def"))
 	if !strings.Contains(out, "name: acme-pg-credentials") {
 		t.Errorf("missing name: %s", out)
 	}
 	if !strings.Contains(out, "namespace: pg") {
 		t.Errorf("missing namespace: %s", out)
+	}
+	// CNPG ≥ 1.25 rejects passwordSecrets that aren't basic-auth with both keys.
+	if !strings.Contains(out, "type: kubernetes.io/basic-auth") {
+		t.Errorf("secret must be kubernetes.io/basic-auth: %s", out)
+	}
+	if !strings.Contains(out, "username: 'acme'") {
+		t.Errorf("missing username key: %s", out)
 	}
 	// Embedded single quote must be doubled inside the single-quoted scalar.
 	if !strings.Contains(out, "password: 'abc''def'") {

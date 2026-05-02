@@ -73,7 +73,7 @@ func Rotate(ctx context.Context, d Deps, app string, opts RotateOptions) (*Tenan
 
 	// 2. Update in-cluster Secret so CNPG reconciliation keeps the new
 	//    password and existing apps reading the Secret pick it up.
-	if err := applyClusterSecret(ctx, d, secretName, newPassword); err != nil {
+	if err := applyClusterSecret(ctx, d, secretName, app, newPassword); err != nil {
 		return nil, fmt.Errorf("apply cluster secret: %w", err)
 	}
 	logger.Info("cluster secret updated", "secret", secretName)
@@ -130,7 +130,7 @@ func writeSOPSSecret(ctx context.Context, d Deps, app, secretName, password stri
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	body := buildSecretYAML(secretName, d.Workspace.Namespace, password)
+	body := buildSecretYAML(secretName, d.Workspace.Namespace, app, password)
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		return err
 	}
