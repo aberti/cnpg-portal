@@ -84,7 +84,7 @@ func TestGeneratePasswordEntropyAndShape(t *testing.T) {
 }
 
 func TestBuildDatabaseURL(t *testing.T) {
-	got := buildDatabaseURL("acme", "p@ss/word", "pg", "acme")
+	got := buildDatabaseURL("pg-primary", "acme", "p@ss/word", "pg", "acme")
 	want := "postgresql://acme:p%40ss%2Fword@pg-primary-rw.pg.svc.cluster.local:5432/acme"
 	if got != want {
 		t.Errorf("buildDatabaseURL =\n  %s\nwant\n  %s", got, want)

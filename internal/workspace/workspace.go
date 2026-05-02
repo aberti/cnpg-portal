@@ -41,6 +41,20 @@ type Workspace struct {
 	Namespace   string `yaml:"namespace"`
 	Pod         string `yaml:"pod"`
 	Container   string `yaml:"container"`
+
+	// ClusterName is the CNPG Cluster CR's name — used for backup, restore,
+	// and Cluster status operations. If empty, derived from Pod by stripping
+	// the trailing instance index (e.g. `pg-primary-17-1` → `pg-primary-17`).
+	ClusterName string `yaml:"cluster_name"`
+
+	// ServiceName is the *stable* DNS prefix used in app connection strings
+	// (`<ServiceName>-rw.<Namespace>.svc.cluster.local`). For deployments that
+	// use the alias-Service pattern (recommended; survives PG-major upgrades
+	// without rewriting app secrets) this is e.g. `pg-primary` regardless of
+	// what the underlying CNPG cluster is named. If empty, defaults to
+	// ClusterName — matching CNPG's auto-created `<cluster>-{rw,ro,r}`
+	// services so single-cluster, never-upgraded setups work out of the box.
+	ServiceName string `yaml:"service_name"`
 }
 
 // ClusterYAMLPath resolves to the absolute path of the CNPG Cluster manifest.
@@ -138,5 +152,27 @@ func (w *Workspace) applyDefaults() {
 	}
 	if w.Container == "" {
 		w.Container = "postgres"
+	}
+	// CNPG primary pods are named `<cluster>-<index>`. If the marker only
+	// declares `pod`, recover ClusterName by trimming the trailing index.
+	if w.ClusterName == "" && w.Pod != "" {
+		if i := strings.LastIndex(w.Pod, "-"); i > 0 {
+			suffix := w.Pod[i+1:]
+			allDigits := suffix != ""
+			for _, r := range suffix {
+				if r < '0' || r > '9' {
+					allDigits = false
+					break
+				}
+			}
+			if allDigits {
+				w.ClusterName = w.Pod[:i]
+			}
+		}
+	}
+	// Stable-alias decoupling is opt-in. If service_name isn't set, default
+	// to ClusterName so callers get the CNPG-auto Service (`<cluster>-rw`).
+	if w.ServiceName == "" {
+		w.ServiceName = w.ClusterName
 	}
 }

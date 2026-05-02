@@ -76,7 +76,7 @@ func ReadCredentials(ctx context.Context, d Deps, app string) (*Credentials, err
 	}
 
 	return &Credentials{
-		Host:     fmt.Sprintf("%s-rw.%s.svc.cluster.local", ServiceName, ns),
+		Host:     fmt.Sprintf("%s-rw.%s.svc.cluster.local", d.Workspace.ServiceName, ns),
 		Port:     inClusterPort,
 		Database: app,
 		User:     app,

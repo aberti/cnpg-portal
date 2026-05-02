@@ -84,7 +84,7 @@ func Provision(ctx context.Context, d Deps, app string) (*Tenant, error) {
 		Role:        app,
 		Database:    app,
 		SecretName:  secretName,
-		DatabaseURL: buildDatabaseURL(app, password, d.Workspace.Namespace, app),
+		DatabaseURL: buildDatabaseURL(d.Workspace.ServiceName, app, password, d.Workspace.Namespace, app),
 	}, nil
 }
 

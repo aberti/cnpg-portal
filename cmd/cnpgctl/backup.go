@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aberti/cnpg-portal/internal/cnpg"
-	"github.com/aberti/cnpg-portal/internal/tenant"
 )
 
 func newBackupCmd() *cobra.Command {
@@ -19,7 +18,7 @@ func newBackupCmd() *cobra.Command {
 		Long: `Backups in CNPG are cluster-wide (Barman base + WAL), not per-database.
 The <app> argument is recorded as the cnpg-portal.aberti/triggered-by label
 on the Backup CR for audit, but the resulting backup covers all tenants in
-` + tenant.ClusterName + `.`,
+the configured cluster (workspace.cluster_name).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			deps, err := buildDeps(workspaceFlag, kubeconfigFlag)
@@ -29,7 +28,7 @@ on the Backup CR for audit, but the resulting backup covers all tenants in
 			ns := deps.Workspace.Namespace
 			out := c.OutOrStdout()
 
-			b, err := cnpg.Trigger(c.Context(), deps.K8s.Dynamic, ns, tenant.ClusterName, args[0])
+			b, err := cnpg.Trigger(c.Context(), deps.K8s.Dynamic, ns, deps.Workspace.ClusterName, args[0])
 			if err != nil {
 				return err
 			}

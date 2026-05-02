@@ -401,7 +401,7 @@ func (h *Handlers) RestoreTenantForm(w http.ResponseWriter, r *http.Request) {
 			"cnpgctl serve was started without K8s/workspace deps; check --workspace and --kubeconfig.")
 		return
 	}
-	backups, err := cnpg.ListBackups(r.Context(), h.Deps.K8s.Dynamic, h.Deps.Workspace.Namespace, tenant.ClusterName)
+	backups, err := cnpg.ListBackups(r.Context(), h.Deps.K8s.Dynamic, h.Deps.Workspace.Namespace, h.Deps.Workspace.ClusterName)
 	if err != nil {
 		h.Logger.Error("list backups for restore form", "err", err)
 		h.renderError(w, r, http.StatusInternalServerError, "Failed to list backups", err.Error())
@@ -487,7 +487,7 @@ func (h *Handlers) restoreFormWithError(w http.ResponseWriter, r *http.Request, 
 		h.renderError(w, r, http.StatusServiceUnavailable, "dependencies not configured", errMsg)
 		return
 	}
-	backups, err := cnpg.ListBackups(r.Context(), h.Deps.K8s.Dynamic, h.Deps.Workspace.Namespace, tenant.ClusterName)
+	backups, err := cnpg.ListBackups(r.Context(), h.Deps.K8s.Dynamic, h.Deps.Workspace.Namespace, h.Deps.Workspace.ClusterName)
 	if err != nil {
 		h.renderError(w, r, http.StatusInternalServerError, "Failed to list backups", err.Error())
 		return
@@ -668,7 +668,7 @@ func (h *Handlers) TriggerBackup(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := contextWithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 
-	b, err := cnpg.Trigger(ctx, h.Deps.K8s.Dynamic, h.Deps.Workspace.Namespace, tenant.ClusterName, "ui")
+	b, err := cnpg.Trigger(ctx, h.Deps.K8s.Dynamic, h.Deps.Workspace.Namespace, h.Deps.Workspace.ClusterName, "ui")
 	if err != nil {
 		h.Logger.Error("trigger backup", "err", err)
 		h.renderBackupResult(w, r, nil, err.Error())

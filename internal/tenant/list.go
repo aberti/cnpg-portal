@@ -23,19 +23,9 @@ LEFT JOIN pg_stat_database s ON s.datname = d.datname
 WHERE NOT d.datistemplate AND d.datname <> 'postgres'
 ORDER BY d.datname`
 
-// ClusterName is the CNPG Cluster the tools target — used for Cluster CR
-// operations (backup, restore, status). It changes on every major-version
-// upgrade (e.g. pg-primary-17 → pg-primary-18).
-//
-// ServiceName is the *stable* alias used in app connection strings. It maps
-// to `<ServiceName>-{rw,ro,r}` Services that select on the current cluster's
-// labels (see database/onetask-pg/services-aliases.yaml). Apps and tooling
-// that emit DSNs use ServiceName so that a cluster rename never invalidates
-// a saved DATABASE_URL. See ADR-0005.
-const (
-	ClusterName = "pg-primary-17"
-	ServiceName = "pg-primary"
-)
+// Cluster + service identity now live on the Workspace (read from the
+// .cnpg-portal-workspace marker), not as package-level constants. See
+// internal/workspace.Workspace.{ClusterName,ServiceName}.
 
 // List returns the tenant inventory: every non-template, non-postgres
 // database in the cluster, with size, connection count, and the last
@@ -95,7 +85,7 @@ func lastClusterBackupTimestamp(ctx context.Context, d Deps) string {
 	if d.K8s == nil || d.K8s.Dynamic == nil || d.Workspace == nil {
 		return ""
 	}
-	backups, err := cnpg.ListBackups(ctx, d.K8s.Dynamic, d.Workspace.Namespace, ClusterName)
+	backups, err := cnpg.ListBackups(ctx, d.K8s.Dynamic, d.Workspace.Namespace, d.Workspace.ClusterName)
 	if err != nil {
 		return ""
 	}

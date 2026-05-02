@@ -89,7 +89,7 @@ func Rotate(ctx context.Context, d Deps, app string, opts RotateOptions) (*Tenan
 		Role:        app,
 		Database:    app,
 		SecretName:  secretName,
-		DatabaseURL: buildDatabaseURL(app, newPassword, d.Workspace.Namespace, app),
+		DatabaseURL: buildDatabaseURL(d.Workspace.ServiceName, app, newPassword, d.Workspace.Namespace, app),
 	}, nil
 }
 

@@ -92,6 +92,48 @@ func TestFindNotFound(t *testing.T) {
 	}
 }
 
+func TestClusterAndServiceNameDefaults(t *testing.T) {
+	t.Run("derived from pod when both unset", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMarker(t, dir, "cluster_yaml: cluster.yaml\npod: pg-primary-17-1\n")
+		w, err := Find(dir)
+		if err != nil {
+			t.Fatalf("Find: %v", err)
+		}
+		if w.ClusterName != "pg-primary-17" {
+			t.Errorf("ClusterName = %q, want pg-primary-17 (stripped from pod)", w.ClusterName)
+		}
+		if w.ServiceName != "pg-primary-17" {
+			t.Errorf("ServiceName = %q, want pg-primary-17 (defaults to ClusterName)", w.ServiceName)
+		}
+	})
+
+	t.Run("explicit values override derivation", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMarker(t, dir,
+			"cluster_yaml: c.yaml\npod: pg-primary-17-1\n"+
+				"cluster_name: my-cluster\nservice_name: pg-primary\n")
+		w, err := Find(dir)
+		if err != nil {
+			t.Fatalf("Find: %v", err)
+		}
+		if w.ClusterName != "my-cluster" {
+			t.Errorf("ClusterName = %q, want my-cluster (explicit)", w.ClusterName)
+		}
+		if w.ServiceName != "pg-primary" {
+			t.Errorf("ServiceName = %q, want pg-primary (explicit alias)", w.ServiceName)
+		}
+	})
+
+	t.Run("pod without numeric suffix leaves ClusterName empty", func(t *testing.T) {
+		w := Workspace{Pod: "single-pod-no-index"}
+		w.applyDefaults()
+		if w.ClusterName != "" {
+			t.Errorf("ClusterName = %q, want empty (no -N suffix to strip)", w.ClusterName)
+		}
+	})
+}
+
 func TestSecretPathAndClusterYAMLPath(t *testing.T) {
 	w := Workspace{Root: "/tmp/root", ClusterYAML: "cluster.yaml"}
 	w.applyDefaults()

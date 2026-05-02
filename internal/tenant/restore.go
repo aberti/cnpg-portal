@@ -30,7 +30,7 @@ func RestoreFromBackup(ctx context.Context, d Deps, app, backupName string, targ
 
 	logger := slog.With("verb", "restore", "app", app, "backup", backupName)
 
-	backups, err := cnpg.ListBackups(ctx, d.K8s.Dynamic, d.Workspace.Namespace, ClusterName)
+	backups, err := cnpg.ListBackups(ctx, d.K8s.Dynamic, d.Workspace.Namespace, d.Workspace.ClusterName)
 	if err != nil {
 		return fmt.Errorf("list backups: %w", err)
 	}
@@ -42,16 +42,16 @@ func RestoreFromBackup(ctx context.Context, d Deps, app, backupName string, targ
 		}
 	}
 	if chosen == nil {
-		return fmt.Errorf("backup %q not found for cluster %s", backupName, ClusterName)
+		return fmt.Errorf("backup %q not found for cluster %s", backupName, d.Workspace.ClusterName)
 	}
 	if chosen.Phase != cnpg.PhaseCompleted {
 		return fmt.Errorf("backup %q is not completed (phase=%s)", backupName, chosen.Phase)
 	}
-	if chosen.Cluster != "" && chosen.Cluster != ClusterName {
-		return fmt.Errorf("backup %q targets cluster %q, expected %s", backupName, chosen.Cluster, ClusterName)
+	if chosen.Cluster != "" && chosen.Cluster != d.Workspace.ClusterName {
+		return fmt.Errorf("backup %q targets cluster %q, expected %s", backupName, chosen.Cluster, d.Workspace.ClusterName)
 	}
 
-	base, err := cnpg.GetCluster(ctx, d.K8s.Dynamic, d.Workspace.Namespace, ClusterName)
+	base, err := cnpg.GetCluster(ctx, d.K8s.Dynamic, d.Workspace.Namespace, d.Workspace.ClusterName)
 	if err != nil {
 		return err
 	}

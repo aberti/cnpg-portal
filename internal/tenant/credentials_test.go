@@ -23,7 +23,7 @@ func depsWithSecrets(secrets ...corev1.Secret) Deps {
 		K8s: &k8s.Client{
 			Clientset: fakekube.NewClientset(objs...),
 		},
-		Workspace: &workspace.Workspace{Namespace: "pg"},
+		Workspace: &workspace.Workspace{Namespace: "pg", ServiceName: "pg-primary"},
 	}
 }
 

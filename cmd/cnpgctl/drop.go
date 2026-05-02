@@ -31,7 +31,7 @@ func newDropCmd() *cobra.Command {
 			_, _ = fmt.Fprintln(out, "  cluster.yaml ", deps.Workspace.ClusterYAMLPath())
 			_, _ = fmt.Fprintln(out, "  removed      ", deps.Workspace.SecretPath(app))
 			_, _ = fmt.Fprintln(out)
-			_, _ = fmt.Fprintln(out, "S3 backups under s3://ot-cnpg-backups/"+tenant.ClusterName+" are NOT purged — clean up via bucket lifecycle policy if needed.")
+			_, _ = fmt.Fprintln(out, "S3 backups under s3://ot-cnpg-backups/"+deps.Workspace.ClusterName+" are NOT purged — clean up via bucket lifecycle policy if needed.")
 			_, _ = fmt.Fprintln(out)
 			_, _ = fmt.Fprintln(out, "Next:")
 			_, _ = fmt.Fprintln(out, "  git -C", deps.Workspace.Root, "add <cluster.yaml> <secrets-dir>/")

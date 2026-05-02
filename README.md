@@ -64,7 +64,8 @@ use it to debug auth / path issues.
 
 A Git repo containing:
 
-- `.cnpg-portal-workspace` (root) — marker file pointing at paths:
+- `.cnpg-portal-workspace` (root) — marker file pointing at paths and
+  declaring the cluster's identity:
 
   ```yaml
   cluster_yaml: database/my-cluster/cluster.yaml
@@ -72,7 +73,20 @@ A Git repo containing:
   namespace:    pg
   pod:          my-cluster-1
   container:    postgres
+  # Optional — leave both unset for the simplest CNPG setup.
+  cluster_name: my-cluster        # CNPG Cluster CR name (default: derived from `pod`).
+  service_name: my-cluster        # DNS prefix in DSNs (default: cluster_name).
   ```
+
+  `cluster_name` drives backup/restore/list operations against the CNPG
+  `Cluster` CR. `service_name` is what appears in connection strings as
+  `<service_name>-rw.<namespace>.svc.cluster.local`. Set them to different
+  values when you've added an alias-Service layer (e.g. `cluster_name:
+  pg-primary-17`, `service_name: pg-primary`) so PG-major upgrades flip
+  one selector instead of rewriting every app's `DATABASE_URL`. With
+  both unset, `cnpgctl` strips the trailing `-N` instance suffix from
+  `pod` to recover `cluster_name`, then uses it for both — matching
+  CNPG's stock auto-created Services.
 
 - The CNPG `Cluster` CR at `cluster_yaml`. Mutating verbs patch its
   `managed.roles`.
