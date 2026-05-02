@@ -77,7 +77,7 @@ func generatePassword() (string, error) {
 // buildDatabaseURL builds the in-cluster DSN. It URL-escapes the password
 // in case it contains characters DSNs treat specially.
 func buildDatabaseURL(role, password, namespace, db string) string {
-	host := fmt.Sprintf("pg-primary-rw.%s.svc.cluster.local", namespace)
+	host := fmt.Sprintf("%s-rw.%s.svc.cluster.local", ServiceName, namespace)
 	return (&url.URL{
 		Scheme: "postgresql",
 		User:   url.UserPassword(role, password),

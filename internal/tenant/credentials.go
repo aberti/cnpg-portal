@@ -76,7 +76,7 @@ func ReadCredentials(ctx context.Context, d Deps, app string) (*Credentials, err
 	}
 
 	return &Credentials{
-		Host:     fmt.Sprintf("pg-primary-rw.%s.svc.cluster.local", ns),
+		Host:     fmt.Sprintf("%s-rw.%s.svc.cluster.local", ServiceName, ns),
 		Port:     inClusterPort,
 		Database: app,
 		User:     app,
