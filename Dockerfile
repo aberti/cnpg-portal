@@ -40,20 +40,31 @@ FROM debian:12-slim AS runtime
 ARG SOPS_VERSION=3.9.2
 ARG AGE_VERSION=1.2.0
 
-# pg_dump comes from postgresql-client (apt). sops + age are static Go
-# binaries downloaded from upstream releases. tini is PID 1 so SIGTERM
-# from `docker stop` reaches cnpgctl cleanly.
+# pg_dump comes from PGDG's postgresql-client-17 (Debian's own package
+# is PG 15, which can't dump from PG 16/17 servers — Neon, modern CNPG,
+# etc. The "import-from-URL" path needs pg_dump >= source-server major).
+# sops + age are static Go binaries from upstream releases. tini is PID
+# 1 so SIGTERM from `docker stop` reaches cnpgctl cleanly.
+ARG PG_MAJOR=17
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        ca-certificates postgresql-client tini wget; \
+        ca-certificates gnupg tini wget; \
+    install -d /etc/apt/keyrings; \
+    wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /etc/apt/keyrings/pgdg.gpg; \
+    echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        "postgresql-client-${PG_MAJOR}"; \
     wget -qO /usr/local/bin/sops \
         "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64"; \
     chmod +x /usr/local/bin/sops; \
     wget -qO- \
         "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz" \
         | tar xz -C /usr/local/bin --strip-components=1 age/age age/age-keygen; \
-    apt-get purge -y wget; \
+    apt-get purge -y wget gnupg; \
     apt-get autoremove -y; \
     rm -rf /var/lib/apt/lists/*
 
