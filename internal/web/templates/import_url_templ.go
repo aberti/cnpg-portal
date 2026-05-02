@@ -78,7 +78,7 @@ func ImportURLForm(prefillApp, errMsg string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" placeholder=\"evs_import\"></label> <label>Source DATABASE_URL <input name=\"database_url\" type=\"password\" required placeholder=\"postgres://user:pass@host:5432/dbname?sslmode=require\"></label> <button type=\"submit\">Provision and import</button></form></article>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" placeholder=\"my_app_imported\"></label> <label>Source DATABASE_URL <input name=\"database_url\" type=\"password\" required placeholder=\"postgres://user:pass@host:5432/dbname?sslmode=require\"></label> <button type=\"submit\">Provision and import</button></form></article>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

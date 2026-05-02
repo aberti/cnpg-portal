@@ -78,7 +78,7 @@ func ImportDumpForm(prefill, errMsg string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" placeholder=\"evs_import\"></label> <label>Dump file <input name=\"dump\" type=\"file\" required></label> <button type=\"submit\">Provision and restore</button></form></article>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" placeholder=\"my_app_imported\"></label> <label>Dump file <input name=\"dump\" type=\"file\" required></label> <button type=\"submit\">Provision and restore</button></form></article>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

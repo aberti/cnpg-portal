@@ -19,7 +19,7 @@ templ ImportDumpForm(prefill, errMsg string) {
 			<form method="post" action="/new/import-dump" enctype="multipart/form-data">
 				<label>
 					App / tenant name
-					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefill } placeholder="evs_import"/>
+					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefill } placeholder="my_app_imported"/>
 				</label>
 				<label>
 					Dump file

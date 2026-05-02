@@ -19,7 +19,7 @@ templ ImportURLForm(prefillApp, errMsg string) {
 			<form method="post" action="/new/import-url" autocomplete="off">
 				<label>
 					App / tenant name
-					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefillApp } placeholder="evs_import"/>
+					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefillApp } placeholder="my_app_imported"/>
 				</label>
 				<label>
 					Source DATABASE_URL

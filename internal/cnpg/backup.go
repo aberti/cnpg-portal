@@ -88,7 +88,7 @@ func LatestCompleted(backups []Backup) Backup {
 //
 // Labels: every CR cnpg-portal creates is tagged
 // `app.kubernetes.io/managed-by=cnpg-portal` plus
-// `cnpg-portal.aberti/triggered-by=<triggeredBy>` so audit queries against
+// `cnpg-portal/triggered-by=<triggeredBy>` so audit queries against
 // the cluster can attribute the action.
 func Trigger(ctx context.Context, dyn dynamic.Interface, namespace, clusterName, triggeredBy string) (*Backup, error) {
 	name := fmt.Sprintf("ondemand-%s-%d", triggeredBy, time.Now().UTC().Unix())
@@ -100,8 +100,8 @@ func Trigger(ctx context.Context, dyn dynamic.Interface, namespace, clusterName,
 				"name":      name,
 				"namespace": namespace,
 				"labels": map[string]any{
-					"app.kubernetes.io/managed-by":    "cnpg-portal",
-					"cnpg-portal.aberti/triggered-by": triggeredBy,
+					"app.kubernetes.io/managed-by": "cnpg-portal",
+					"cnpg-portal/triggered-by":     triggeredBy,
 				},
 			},
 			"spec": map[string]any{

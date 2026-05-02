@@ -651,7 +651,7 @@ func (h *Handlers) TenantDetail(w http.ResponseWriter, r *http.Request) {
 //
 // Backups are cluster-wide (CNPG WAL + Barman base), so the verb lives at
 // the page header level rather than per-tenant. The Backup CR is labelled
-// `cnpg-portal.aberti/triggered-by=ui` for audit.
+// `cnpg-portal/triggered-by=ui` for audit.
 func (h *Handlers) TriggerBackup(w http.ResponseWriter, r *http.Request) {
 	if h.Deps.K8s == nil || h.Deps.K8s.Dynamic == nil || h.Deps.Workspace == nil {
 		h.renderBackupResult(w, r, nil, "K8s/workspace deps not configured")

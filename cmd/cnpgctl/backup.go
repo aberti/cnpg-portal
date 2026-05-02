@@ -16,9 +16,9 @@ func newBackupCmd() *cobra.Command {
 		Use:   "backup <app>",
 		Short: "Trigger an on-demand CNPG Backup CR and follow until completion",
 		Long: `Backups in CNPG are cluster-wide (Barman base + WAL), not per-database.
-The <app> argument is recorded as the cnpg-portal.aberti/triggered-by label
-on the Backup CR for audit, but the resulting backup covers all tenants in
-the configured cluster (workspace.cluster_name).`,
+The <app> argument is recorded as the cnpg-portal/triggered-by label on the
+Backup CR for audit, but the resulting backup covers all tenants in the
+configured cluster (workspace.cluster_name).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			deps, err := buildDeps(workspaceFlag, kubeconfigFlag)
