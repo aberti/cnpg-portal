@@ -106,6 +106,58 @@ templ RotateTenantForm(app, errMsg string) {
 	}
 }
 
+templ SyncTenantForm(dst string, sources []string, errMsg string) {
+	@Layout("cnpg-portal — sync tenant") {
+		<nav aria-label="breadcrumb">
+			<ul>
+				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ templ.URL("/tenant/" + dst) } hx-boost="true">{ dst }</a></li>
+				<li>Sync</li>
+			</ul>
+		</nav>
+		<article>
+			<header>Sync tenant <code>{ dst }</code></header>
+			<p><small>Overwrites <code>{ dst }</code>'s database with a clone of the chosen source. Destination role and credential Secret are preserved; apps using the existing DSN keep working post-sync (with different data).</small></p>
+			<p><small><strong>Destructive:</strong> open sessions on <code>{ dst }</code> are terminated and the database is dropped before reload.</small></p>
+			if errMsg != "" {
+				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
+			}
+			if len(sources) == 0 {
+				<p><small>No other tenants are available to sync from.</small></p>
+			} else {
+				<form method="post" action={ templ.URL("/tenant/" + dst + "/sync") }>
+					<label>
+						Source tenant
+						<select name="src" required>
+							<option value="" disabled selected>Choose a source tenant…</option>
+							for _, s := range sources {
+								<option value={ s }>{ s }</option>
+							}
+						</select>
+					</label>
+					<label>
+						Type destination tenant name to confirm
+						<input name="confirm" type="text" required placeholder={ dst } autocomplete="off"/>
+					</label>
+					<button type="submit" class="contrast secondary">Sync (overwrite { dst })</button>
+				</form>
+			}
+		</article>
+	}
+}
+
+templ SyncTenantDone(src, dst string) {
+	@Layout("cnpg-portal — sync complete") {
+		<article>
+			<header>Sync complete</header>
+			@kv("source", src)
+			@kv("destination", dst)
+			<p><small>Destination credentials were preserved. Existing apps using <code>{ dst }</code>'s DSN will see the new data on next query.</small></p>
+			<p><a href={ templ.URL("/tenant/" + dst) } hx-boost="true">Open destination details</a></p>
+		</article>
+	}
+}
+
 templ RotateTenantDone(t *tenant.Tenant) {
 	@Layout("cnpg-portal — credentials rotated") {
 		<article>

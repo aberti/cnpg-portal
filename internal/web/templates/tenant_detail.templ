@@ -53,6 +53,7 @@ templ TenantDetail(t *tenant.Tenant, creds *tenant.Credentials, isAdmin bool) {
 				<header>Admin actions</header>
 				<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
 					<a href={ templ.URL("/tenant/" + t.Name + "/branch") } role="button" class="contrast" hx-boost="true">Branch</a>
+					<a href={ templ.URL("/tenant/" + t.Name + "/sync") } role="button" class="contrast secondary" hx-boost="true">Sync from…</a>
 					if hasManagedRole(t) {
 						<a href={ templ.URL("/tenant/" + t.Name + "/rotate") } role="button" class="outline" hx-boost="true">Rotate password</a>
 					}

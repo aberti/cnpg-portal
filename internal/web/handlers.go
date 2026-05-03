@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -266,6 +267,103 @@ func (h *Handlers) BranchTenantSubmit(w http.ResponseWriter, r *http.Request) {
 	if err := templates.BranchTenantCreated(src, t).Render(r.Context(), w); err != nil {
 		h.Logger.Error("render branch success", "err", err)
 	}
+}
+
+// SyncTenantForm serves GET /tenant/{name}/sync — admin-only. {name} is the
+// *destination* tenant; the form picks a source from the dropdown of all
+// other tenants and overwrites this tenant's database with the source.
+func (h *Handlers) SyncTenantForm(w http.ResponseWriter, r *http.Request) {
+	dst := chi.URLParam(r, "name")
+	if !pg.IdentSafe(dst) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+		return
+	}
+	if h.Deps.PG == nil {
+		h.renderError(w, r, http.StatusServiceUnavailable, "database client not configured", "cnpgctl serve was started without Postgres deps.")
+		return
+	}
+	sources, err := h.listSyncSources(r.Context(), dst)
+	if err != nil {
+		h.Logger.Error("list tenants for sync", "err", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to list source tenants", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := templates.SyncTenantForm(dst, sources, "").Render(r.Context(), w); err != nil {
+		h.Logger.Error("render sync form", "err", err)
+	}
+}
+
+// SyncTenantSubmit serves POST /tenant/{name}/sync.
+func (h *Handlers) SyncTenantSubmit(w http.ResponseWriter, r *http.Request) {
+	dst := chi.URLParam(r, "name")
+	if !pg.IdentSafe(dst) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid destination tenant", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		h.renderError(w, r, http.StatusBadRequest, "invalid form", err.Error())
+		return
+	}
+	src := strings.ToLower(strings.TrimSpace(r.FormValue("src")))
+	confirm := strings.TrimSpace(r.FormValue("confirm"))
+
+	var errMsg string
+	switch {
+	case !pg.IdentSafe(src):
+		errMsg = "Choose a source tenant from the list."
+	case src == dst:
+		errMsg = "Source must be different from the destination tenant."
+	case confirm != dst:
+		errMsg = "Confirmation must exactly match the destination tenant name."
+	}
+	if errMsg != "" {
+		sources, lerr := h.listSyncSources(r.Context(), dst)
+		if lerr != nil {
+			h.renderError(w, r, http.StatusInternalServerError, "Failed to list source tenants", lerr.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		if err := templates.SyncTenantForm(dst, sources, errMsg).Render(r.Context(), w); err != nil {
+			h.Logger.Error("render sync form with error", "err", err)
+		}
+		return
+	}
+	if h.Deps.K8s == nil || h.Deps.PG == nil || h.Deps.Workspace == nil {
+		h.renderError(w, r, http.StatusServiceUnavailable,
+			"dependencies not configured",
+			"cnpgctl serve was started without K8s/PG/workspace deps; check --workspace and --kubeconfig.")
+		return
+	}
+	id, _ := IdentityFrom(r.Context())
+	h.Logger.Info("audit", "event", "tenant.sync", "user", id.Login, "src", src, "dst", dst, "rid", RequestID(r.Context()))
+	if err := tenant.Sync(r.Context(), h.Deps, src, dst, tenant.SyncOptions{Confirmed: true}); err != nil {
+		h.Logger.Error("sync tenant", "err", err, "src", src, "dst", dst)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to sync tenant", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := templates.SyncTenantDone(src, dst).Render(r.Context(), w); err != nil {
+		h.Logger.Error("render sync success", "err", err)
+	}
+}
+
+// listSyncSources returns the sorted names of all tenants except `excluded`,
+// ready to render in the sync source dropdown.
+func (h *Handlers) listSyncSources(ctx context.Context, excluded string) ([]string, error) {
+	tenants, err := tenant.List(ctx, h.Deps)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(tenants))
+	for i := range tenants {
+		if tenants[i].Name == excluded {
+			continue
+		}
+		names = append(names, tenants[i].Name)
+	}
+	return names, nil
 }
 
 // DropTenantForm serves GET /tenant/{name}/drop — admin-only page.

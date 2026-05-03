@@ -56,6 +56,7 @@ func newRootCmd() *cobra.Command {
 		newStatusCmd(),
 		newPsqlCmd(),
 		newBranchCmd(),
+		newSyncCmd(),
 		newBackupCmd(),
 		newDumpCmd(),
 		newDropCmd(),

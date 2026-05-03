@@ -183,6 +183,8 @@ func Router(deps tenant.Deps, logger *slog.Logger, auth Auth) http.Handler {
 			r.Post("/tenant/{name}/conns/{pid}/terminate", h.TerminateTenantConnection)
 			r.Get("/tenant/{name}/branch", h.BranchTenantForm)
 			r.Post("/tenant/{name}/branch", h.BranchTenantSubmit)
+			r.Get("/tenant/{name}/sync", h.SyncTenantForm)
+			r.Post("/tenant/{name}/sync", h.SyncTenantSubmit)
 			r.Get("/tenant/{name}/drop", h.DropTenantForm)
 			r.Post("/tenant/{name}/drop", h.DropTenantSubmit)
 			r.Get("/tenant/{name}/restore", h.RestoreTenantForm)

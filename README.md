@@ -127,6 +127,7 @@ Provide the `Cluster` CR yourself (see CNPG docs for templates).
 | Per-tenant detail | `cnpgctl status <app>` | `/tenant/{name}` |
 | `psql` shell | `cnpgctl psql <app>` | — |
 | Branch | `cnpgctl branch <src> <dst>` | `/tenant/{name}/branch` |
+| Sync (overwrite dst with src) | `cnpgctl sync <src> <dst> --yes-i-mean-it` | `/tenant/{name}/sync` |
 | On-demand backup | `cnpgctl backup <app>` | header button |
 | Stream `pg_dump -Fc` | `cnpgctl dump <app> -o file` | `/tenant/{name}/dump` |
 | Drop | `cnpgctl drop <app> --yes-i-mean-it` | `/tenant/{name}/drop` |
