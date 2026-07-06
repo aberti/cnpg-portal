@@ -12,6 +12,8 @@ func TestParseBackup(t *testing.T) {
 		"metadata": map[string]any{"name": "pg-primary-2026-04-27-02"},
 		"spec":     map[string]any{"cluster": map[string]any{"name": "pg-primary"}},
 		"status": map[string]any{
+			"backupId":        "20260706T125909",
+			"method":          "plugin",
 			"phase":           "completed",
 			"startedAt":       "2026-04-27T02:00:00Z",
 			"stoppedAt":       "2026-04-27T02:01:30Z",
@@ -21,6 +23,9 @@ func TestParseBackup(t *testing.T) {
 	b := parseBackup(item)
 	if b.Name != "pg-primary-2026-04-27-02" || b.Cluster != "pg-primary" || b.Phase != "completed" {
 		t.Errorf("unexpected backup: %+v", b)
+	}
+	if b.BackupID != "20260706T125909" || b.Method != "plugin" {
+		t.Errorf("unexpected plugin metadata: %+v", b)
 	}
 	wantStart, _ := time.Parse(time.RFC3339, "2026-04-27T02:00:00Z")
 	if !b.StartedAt.Equal(wantStart) {

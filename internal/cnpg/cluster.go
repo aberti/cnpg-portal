@@ -33,12 +33,19 @@ func GetCluster(ctx context.Context, dyn dynamic.Interface, namespace, name stri
 	return obj, nil
 }
 
-// CreateRecoveryCluster provisions a new Cluster that bootstraps from an existing
-// Backup CR (optional PITR via targetTime). imageName and storage are copied from
-// baseCluster (typically the live primary Cluster manifest).
-func CreateRecoveryCluster(ctx context.Context, dyn dynamic.Interface, namespace, newClusterName, backupName string, baseCluster *unstructured.Unstructured, targetTime *time.Time) error {
+// CreateRecoveryCluster provisions a new Cluster that bootstraps from the
+// Barman Cloud plugin object store used by baseCluster. backupID selects the
+// base backup to restore from; optional targetTime adds PITR on top.
+func CreateRecoveryCluster(ctx context.Context, dyn dynamic.Interface, namespace, newClusterName, backupID string, baseCluster *unstructured.Unstructured, targetTime *time.Time) error {
 	if baseCluster == nil {
 		return fmt.Errorf("CreateRecoveryCluster: baseCluster required")
+	}
+	sourceName := baseCluster.GetName()
+	if sourceName == "" {
+		return fmt.Errorf("base cluster missing metadata.name")
+	}
+	if strings.TrimSpace(backupID) == "" {
+		return fmt.Errorf("backupID is required for plugin recovery")
 	}
 	imageName, _, err := unstructured.NestedString(baseCluster.Object, "spec", "imageName")
 	if err != nil || imageName == "" {
@@ -48,16 +55,25 @@ func CreateRecoveryCluster(ctx context.Context, dyn dynamic.Interface, namespace
 	if err != nil || !found || len(storage) == 0 {
 		return fmt.Errorf("base cluster missing spec.storage")
 	}
+	objectStoreName, err := barmanObjectStoreName(baseCluster)
+	if err != nil {
+		return err
+	}
 
 	recovery := map[string]any{
-		"backup": map[string]any{"name": backupName},
+		"source":   sourceName,
+		"database": "postgres",
+		"owner":    "postgres",
+	}
+	recoveryTarget := map[string]any{
+		"backupID": backupID,
 	}
 	if targetTime != nil {
 		// CNPG accepts ISO-like timestamps for recoveryTarget.targetTime.
-		recovery["recoveryTarget"] = map[string]any{
-			"targetTime": targetTime.UTC().Format(time.RFC3339),
-		}
+		recoveryTarget["targetTime"] = targetTime.UTC().Format(time.RFC3339)
+		recoveryTarget["targetAction"] = "promote"
 	}
+	recovery["recoveryTarget"] = recoveryTarget
 
 	obj := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -77,6 +93,19 @@ func CreateRecoveryCluster(ctx context.Context, dyn dynamic.Interface, namespace
 				"bootstrap": map[string]any{
 					"recovery": recovery,
 				},
+				"externalClusters": []any{
+					map[string]any{
+						"name": sourceName,
+						"plugin": map[string]any{
+							"name":    "barman-cloud.cloudnative-pg.io",
+							"enabled": true,
+							"parameters": map[string]any{
+								"barmanObjectName": objectStoreName,
+								"serverName":       sourceName,
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -85,6 +114,29 @@ func CreateRecoveryCluster(ctx context.Context, dyn dynamic.Interface, namespace
 		return fmt.Errorf("create recovery cluster %s/%s: %w", namespace, newClusterName, err)
 	}
 	return nil
+}
+
+func barmanObjectStoreName(cluster *unstructured.Unstructured) (string, error) {
+	plugins, found, err := unstructured.NestedSlice(cluster.Object, "spec", "plugins")
+	if err != nil || !found {
+		return "", fmt.Errorf("base cluster missing spec.plugins barman-cloud entry")
+	}
+	for _, raw := range plugins {
+		plugin, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _, _ := unstructured.NestedString(plugin, "name")
+		if name != "barman-cloud.cloudnative-pg.io" {
+			continue
+		}
+		objectStore, _, _ := unstructured.NestedString(plugin, "parameters", "barmanObjectName")
+		if objectStore == "" {
+			return "", fmt.Errorf("barman-cloud plugin missing parameters.barmanObjectName")
+		}
+		return objectStore, nil
+	}
+	return "", fmt.Errorf("base cluster missing barman-cloud plugin")
 }
 
 // DeleteCluster removes a CNPG Cluster CR (PVCs follow operator cleanup rules).

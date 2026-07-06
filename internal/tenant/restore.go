@@ -47,6 +47,9 @@ func RestoreFromBackup(ctx context.Context, d Deps, app, backupName string, targ
 	if chosen.Phase != cnpg.PhaseCompleted {
 		return fmt.Errorf("backup %q is not completed (phase=%s)", backupName, chosen.Phase)
 	}
+	if chosen.BackupID == "" {
+		return fmt.Errorf("backup %q has no status.backupId; cannot restore with Barman Cloud plugin", backupName)
+	}
 	if chosen.Cluster != "" && chosen.Cluster != d.Workspace.ClusterName {
 		return fmt.Errorf("backup %q targets cluster %q, expected %s", backupName, chosen.Cluster, d.Workspace.ClusterName)
 	}
@@ -57,7 +60,7 @@ func RestoreFromBackup(ctx context.Context, d Deps, app, backupName string, targ
 	}
 
 	recName := cnpg.RecoveryClusterName(app)
-	if err := cnpg.CreateRecoveryCluster(ctx, d.K8s.Dynamic, d.Workspace.Namespace, recName, backupName, base, targetTime); err != nil {
+	if err := cnpg.CreateRecoveryCluster(ctx, d.K8s.Dynamic, d.Workspace.Namespace, recName, chosen.BackupID, base, targetTime); err != nil {
 		return err
 	}
 	deleted := false

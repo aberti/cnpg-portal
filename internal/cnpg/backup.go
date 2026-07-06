@@ -39,6 +39,8 @@ const PhaseCompleted = "completed"
 type Backup struct {
 	Name      string
 	Cluster   string    // .spec.cluster.name
+	BackupID  string    // .status.backupId, used by plugin-based recovery
+	Method    string    // .spec.method / .status.method
 	Phase     string    // .status.phase: "completed" | "running" | "failed" | ...
 	StartedAt time.Time // zero if not yet started
 	StoppedAt time.Time // zero if not yet finished
@@ -106,7 +108,10 @@ func Trigger(ctx context.Context, dyn dynamic.Interface, namespace, clusterName,
 			},
 			"spec": map[string]any{
 				"cluster": map[string]any{"name": clusterName},
-				"method":  "barmanObjectStore",
+				"method":  "plugin",
+				"pluginConfiguration": map[string]any{
+					"name": "barman-cloud.cloudnative-pg.io",
+				},
 			},
 		},
 	}
@@ -152,6 +157,11 @@ func Wait(ctx context.Context, dyn dynamic.Interface, namespace, name string) (*
 func parseBackup(item *unstructured.Unstructured) Backup {
 	b := Backup{Name: item.GetName()}
 	b.Cluster, _, _ = unstructured.NestedString(item.Object, "spec", "cluster", "name")
+	b.Method, _, _ = unstructured.NestedString(item.Object, "status", "method")
+	if b.Method == "" {
+		b.Method, _, _ = unstructured.NestedString(item.Object, "spec", "method")
+	}
+	b.BackupID, _, _ = unstructured.NestedString(item.Object, "status", "backupId")
 	b.Phase, _, _ = unstructured.NestedString(item.Object, "status", "phase")
 	b.DestPath, _, _ = unstructured.NestedString(item.Object, "status", "destinationPath")
 	if v, ok, _ := unstructured.NestedString(item.Object, "status", "startedAt"); ok {
