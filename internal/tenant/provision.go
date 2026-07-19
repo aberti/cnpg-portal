@@ -36,7 +36,7 @@ func Provision(ctx context.Context, d Deps, app string) (*Tenant, error) {
 		return nil, errors.New("Provision: K8s, PG, and Workspace deps are required")
 	}
 
-	secretName := K8sSecretName(app)
+	secretName := d.Workspace.SecretName(app)
 	logger := slog.With("verb", "provision", "app", app)
 
 	// 1. Resolve password: existing SOPS file → reuse; missing → generate + encrypt.
@@ -106,26 +106,16 @@ func ensureSecretFile(ctx context.Context, ws *workspace.Workspace, app, secretN
 		return pw, nil
 	}
 
-	if err := sops.CheckAvailable(); err != nil {
-		return "", err
-	}
 	pw, err := generatePassword()
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
 	body := buildSecretYAML(secretName, ws.Namespace, app, pw)
-	if err := os.WriteFile(path, body, 0o600); err != nil {
+	encrypted, err := sops.EncryptForWorkspace(ws.Root, path, body)
+	if err != nil {
 		return "", err
 	}
-	if err := sops.EncryptInPlace(ctx, ws.Root, path); err != nil {
-		// Don't leave plaintext on disk if encryption failed.
-		_ = os.Remove(path)
-		return "", err
-	}
-	if err := os.Chmod(path, 0o644); err != nil {
+	if err := sops.WriteEncryptedAtomic(path, encrypted); err != nil {
 		return "", err
 	}
 	return pw, nil

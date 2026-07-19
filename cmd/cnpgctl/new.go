@@ -21,7 +21,7 @@ func newNewCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, args []string) error {
 			app := args[0]
 
-			ws, err := workspace.Find(workspaceFlag)
+			ws, err := workspace.FindCluster(workspaceFlag, clusterFlag)
 			if err != nil {
 				return err
 			}

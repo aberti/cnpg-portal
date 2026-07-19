@@ -10,8 +10,8 @@ templ TenantConnections(name string, rows []tenant.Connection, isAdmin bool, msg
 	@Layout("cnpg-portal — " + name + " connections") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href={ templ.URL("/tenant/" + name) } hx-boost="true">{ name }</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/tenant/" + name) }>{ name }</a></li>
 				<li>Connections</li>
 			</ul>
 		</nav>
@@ -51,7 +51,7 @@ templ TenantConnections(name string, rows []tenant.Connection, isAdmin bool, msg
 									<td><small>{ c.Query }</small></td>
 									if isAdmin {
 										<td>
-											<form method="post" action={ templ.URL("/tenant/" + name + "/conns/" + itoa(c.PID) + "/terminate") }>
+											<form method="post" action={ Route(ctx, "/tenant/" + name + "/conns/" + itoa(c.PID) + "/terminate") }>
 												<button type="submit" class="secondary">Terminate</button>
 											</form>
 										</td>
@@ -62,7 +62,7 @@ templ TenantConnections(name string, rows []tenant.Connection, isAdmin bool, msg
 					</table>
 				</figure>
 			}
-			<p><a href={ templ.URL("/tenant/" + name + "/conns") } hx-boost="true">Refresh</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + name + "/conns") }>Refresh</a></p>
 		</article>
 	}
 }

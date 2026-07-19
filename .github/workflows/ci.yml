@@ -39,7 +39,7 @@ jobs:
           args: --timeout=5m
 
   # Build + push container image to ghcr.io on every merge to main.
-  # Image is published as a public package; the source repo stays private.
+  # Image and source are public.
   # First-push visibility is private (inherits repo); flip with:
   #   gh api -X PATCH /user/packages/container/cnpg-portal -f visibility=public
   image:

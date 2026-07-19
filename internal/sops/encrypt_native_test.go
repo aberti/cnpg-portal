@@ -2,6 +2,8 @@ package sops
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -76,5 +78,38 @@ func TestEncryptYAMLForRecipientRejectsBadRecipient(t *testing.T) {
 	_, err := EncryptYAMLForRecipient([]byte("kind: Foo\n"), "not-an-age-key")
 	if err == nil {
 		t.Errorf("expected error for malformed recipient, got nil")
+	}
+}
+
+func TestEncryptForWorkspaceWritesOnlyCiphertext(t *testing.T) {
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	config := "creation_rules:\n  - path_regex: secrets/.*\\.sops\\.yaml$\n    age: " +
+		identity.Recipient().String() + "\n"
+	if err := os.WriteFile(filepath.Join(root, ".sops.yaml"), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "secrets", "pg", "acme.sops.yaml")
+	plain := []byte("stringData:\n  password: never-write-this-plaintext\n")
+
+	encrypted, err := EncryptForWorkspace(root, target, plain)
+	if err != nil {
+		t.Fatalf("EncryptForWorkspace: %v", err)
+	}
+	if err := WriteEncryptedAtomic(target, encrypted); err != nil {
+		t.Fatalf("WriteEncryptedAtomic: %v", err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(got, []byte("never-write-this-plaintext")) {
+		t.Fatal("workspace file contains plaintext")
+	}
+	if !bytes.Contains(got, []byte("sops:")) {
+		t.Fatal("workspace file does not contain SOPS metadata")
 	}
 }

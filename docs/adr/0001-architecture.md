@@ -5,8 +5,8 @@ Status: Accepted
 ## Context
 
 A small operator wants Neon-flavoured tenant operations (create / list /
-branch / rotate / dump / restore / drop) over a single CloudNativePG
-cluster, without standing up a separate database control plane or a
+branch / rotate / dump / restore / drop) over one or more CloudNativePG
+clusters, without standing up a separate database control plane or a
 parallel state store.
 
 ## Decision
@@ -22,8 +22,10 @@ repository that follows the conventions in
 [README.md → Workspace conventions](../../README.md#workspace-conventions):
 
 - A `.cnpg-portal-workspace` marker at the repo root.
-- The CNPG `Cluster` CR at the marker's `cluster_yaml` path. Mutating
-  verbs patch its `managed.roles` list.
+- One legacy flat target or a catalog of named CNPG targets. Each target
+  points at its own `Cluster` CR and runtime connection data.
+- The CNPG `Cluster` CR at each target's `cluster_yaml` path. Mutating
+  verbs patch only the selected target's `managed.roles` list.
 - A `secrets_dir/` of SOPS-encrypted K8s `Secret` files, one per
   tenant.
 - A `.sops.yaml` at the repo root pointing at the operator's age key.
@@ -31,6 +33,11 @@ repository that follows the conventions in
 There is no parallel control-plane database. Every mutation reads or
 writes the same files an SRE would edit by hand; the portal is a
 reasoning layer on top.
+
+The selected cluster is explicit at the boundary: `--cluster` for CLI
+commands and `/clusters/{id}/...` for web routes. It is never inferred
+from a browser cookie, so bookmarks, logs, and audit events retain their
+target context.
 
 ### Verb package boundary
 

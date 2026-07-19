@@ -17,7 +17,13 @@
 # — every request needs a Tailscale-User-Login header (or 403). If you
 # uncomment --dev-login below, ALSO uncomment --admin-list-path; otherwise
 # the binary takes a "laptop dev" fallback that auto-admins the dev-login
-# email — i.e., anyone reachable on :8080 is admin.
+# email — i.e., anyone reachable on the configured listen port is admin.
+#
+# The default listen port is 8080. If another local dev service already
+# owns it, change --addr below, recreate the container, and point
+# Tailscale Serve at the same port:
+#
+#   tailscale serve --bg 8081
 
 services:
   cnpg-portal:
@@ -27,12 +33,14 @@ services:
       - --workspace=/workspace
       - --kubeconfig=/run/secrets/kubeconfig
       - --log-format=json
+      # Required when Tailscale Serve exposes a public host that differs
+      # from the internal listener host. Repeat for additional public origins.
+      # - --allowed-origin=https://dev.example-tailnet.ts.net
 
       # ---- pick ONE auth path below ----
 
-      # (a) Single dev login + explicit admin allow-list. Recommended for
-      #     single-user tailnet-only deployments (the tailnet is the
-      #     access boundary; allow-list is defense-in-depth).
+      # (a) Single dev login + explicit admin allow-list. Local development
+      #     only; prefer Tailscale-injected identity for a served portal.
       # - --dev-login=you@example.com
       # - --admin-list-path=/run/secrets/admins
 

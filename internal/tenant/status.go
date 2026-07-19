@@ -53,11 +53,16 @@ func Status(ctx context.Context, d Deps, app string) (*Tenant, error) {
 	size, _ := strconv.ParseInt(strings.TrimSpace(r[2]), 10, 64)
 	conns, _ := strconv.Atoi(strings.TrimSpace(r[3]))
 	connLimit, _ := strconv.Atoi(strings.TrimSpace(r[7]))
+	name := strings.TrimSpace(r[0])
+	secretName := K8sSecretName(name)
+	if d.Workspace != nil {
+		secretName = d.Workspace.SecretName(name)
+	}
 	return &Tenant{
-		Name:            strings.TrimSpace(r[0]),
+		Name:            name,
 		Role:            strings.TrimSpace(r[0]),
 		Database:        strings.TrimSpace(r[0]),
-		SecretName:      K8sSecretName(strings.TrimSpace(r[0])),
+		SecretName:      secretName,
 		Owner:           strings.TrimSpace(r[1]),
 		SizeBytes:       size,
 		Connections:     conns,

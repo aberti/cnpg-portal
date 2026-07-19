@@ -10,8 +10,8 @@ templ RestoreTenantForm(app string, backups []RestoreBackupChoice, errMsg string
 	@Layout("cnpg-portal — restore from backup") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href={ templ.URL("/tenant/" + app) } hx-boost="true">{ app }</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/tenant/" + app) }>{ app }</a></li>
 				<li>Restore</li>
 			</ul>
 		</nav>
@@ -28,7 +28,7 @@ templ RestoreTenantForm(app string, backups []RestoreBackupChoice, errMsg string
 			if len(backups) == 0 {
 				<p><small>No completed backups found for this cluster. Trigger a backup first.</small></p>
 			} else {
-				<form method="post" action={ templ.URL("/tenant/" + app + "/restore") }>
+				<form method="post" action={ Route(ctx, "/tenant/" + app + "/restore") }>
 					<label>
 						Backup
 						<select name="backup" required>
@@ -48,7 +48,7 @@ templ RestoreTenantForm(app string, backups []RestoreBackupChoice, errMsg string
 					<button type="submit" class="secondary">Restore now</button>
 				</form>
 			}
-			<p><a href={ templ.URL("/tenant/" + app) } hx-boost="true">← Back to tenant</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + app) }>← Back to tenant</a></p>
 		</article>
 	}
 }
@@ -58,7 +58,7 @@ templ RestoreTenantDone(app string) {
 		<article>
 			<header>Restore complete</header>
 			<p><small>Database <code>{ app }</code> on the primary was replaced from the recovery stream.</small></p>
-			<p><a href={ templ.URL("/tenant/" + app) } hx-boost="true">Back to tenant</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + app) }>Back to tenant</a></p>
 		</article>
 	}
 }

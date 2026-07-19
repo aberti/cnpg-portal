@@ -18,28 +18,26 @@ import (
 // user can't double-click during the ~30–90s wait. CNPG backups are
 // cluster-wide, not per-tenant, so this lives in the page header.
 templ BackupStatus(ready bool, b *cnpg.Backup, err string, canTrigger bool) {
-	<div id="backup-status" style="display:flex;gap:1rem;align-items:center;">
+	<div id="backup-status" aria-live="polite">
 		if !canTrigger {
-			<small style="color:var(--pico-color-zinc-500);">Backup is admin-only.</small>
+			<small class="muted">Backup is admin-only.</small>
 		} else if ready {
-			<button hx-post="/backup" hx-target="#backup-status" hx-swap="outerHTML" hx-disabled-elt="this" hx-indicator="#backup-spinner">
-				<span class="backup-label">Trigger backup</span>
-				<span id="backup-spinner" class="backup-indicator" aria-busy="true">Backing up… (CNPG backs up the whole cluster, ~30–90s)</span>
-			</button>
+			<form method="post" action={ Route(ctx, "/backup") }>
+				<button class="secondary" type="submit">Trigger backup</button>
+			</form>
 		} else if err != "" {
-			<small style="color:var(--pico-color-red-600);">backup failed: { err }</small>
-			<button class="secondary" hx-post="/backup" hx-target="#backup-status" hx-swap="outerHTML">Retry</button>
+			<span class="alert" role="alert">Backup failed: { err }</span>
+			<form method="post" action={ Route(ctx, "/backup") }>
+				<button class="secondary" type="submit">Retry</button>
+			</form>
 		} else if b != nil {
-			<small style="color:var(--pico-color-green-600);">
+			<small>
 				✓ { b.Name } — completed { describeBackup(b) }
 			</small>
-			<button class="secondary" hx-post="/backup" hx-target="#backup-status" hx-swap="outerHTML">Backup again</button>
+			<form method="post" action={ Route(ctx, "/backup") }>
+				<button class="secondary" type="submit">Backup again</button>
+			</form>
 		}
-		<style>
-			.backup-indicator { display: none; }
-			.htmx-request .backup-indicator { display: inline; }
-			.htmx-request .backup-label { display: none; }
-		</style>
 	</div>
 }
 

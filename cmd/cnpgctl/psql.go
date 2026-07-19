@@ -33,7 +33,7 @@ out instead. Requires kubectl on PATH (mise pin in .mise.toml provides it).`,
 			}
 			extra := args[1:]
 
-			ws, err := workspace.Find(workspaceFlag)
+			ws, err := workspace.FindCluster(workspaceFlag, clusterFlag)
 			if err != nil {
 				return err
 			}

@@ -76,7 +76,7 @@ func TestTenantDetailRendersAllFormats(t *testing.T) {
 		t.Error("expected URL form in output")
 	}
 	// Copy button should be present once per format.
-	if got := strings.Count(out, ">copy</button>"); got != len(connstr.All) {
+	if got := strings.Count(out, ">Copy</button>"); got != len(connstr.All) {
 		t.Errorf("expected %d copy buttons, got %d", len(connstr.All), got)
 	}
 	// Password must NOT leak as plaintext into a URL via wrong escaping —
@@ -84,5 +84,36 @@ func TestTenantDetailRendersAllFormats(t *testing.T) {
 	// correct. Smoke-test just confirms no double-encoding.
 	if strings.Contains(out, "secret123secret123") {
 		t.Error("password appears doubled — likely a render bug")
+	}
+}
+
+func TestTenantDetailKeepsClusterScopeAndHidesSharedOwnerCredentials(t *testing.T) {
+	tn := &tenant.Tenant{
+		Name: "legacy_reporting", Database: "legacy_reporting", Owner: "postgres",
+		SecretName: "legacy-reporting-pg-credentials",
+	}
+	ctx := WithPageContext(context.Background(), PageContext{
+		BasePath:    "/clusters/analytics",
+		ClusterID:   "analytics",
+		ClusterName: "postgres-analytics",
+		DisplayName: "Analytics",
+		Namespace:   "pg",
+	})
+	var b strings.Builder
+	if err := TenantDetail(tn, nil, true).Render(ctx, &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	out := b.String()
+	if !strings.Contains(out, `href="/clusters/analytics/"`) {
+		t.Error("tenant detail lost the active cluster scope")
+	}
+	if strings.Contains(out, "/tenant/legacy_reporting/rotate") {
+		t.Error("shared-owner database exposed password rotation")
+	}
+	if !strings.Contains(out, "Shared or unmanaged owner") {
+		t.Error("shared-owner database lacks an explicit unmanaged badge")
+	}
+	if !strings.Contains(out, "cnpgctl --cluster analytics") {
+		t.Error("CLI snippets do not identify the active cluster")
 	}
 }

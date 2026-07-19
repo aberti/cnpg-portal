@@ -2,9 +2,6 @@ package templates
 
 import "github.com/aberti/cnpg-portal/internal/version"
 
-// Layout is the page chrome shared by every UI route. Pico.css gives us a
-// reasonable visual baseline with zero build step; htmx gives us
-// progressive enhancement for the action buttons in Slice 2.
 templ Layout(title string) {
 	<!DOCTYPE html>
 	<html lang="en" data-theme="light">
@@ -12,31 +9,46 @@ templ Layout(title string) {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title }</title>
-			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"/>
-			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-			<style>
-				main.container { max-width: 95rem; }
-				header.container > nav { padding-bottom: 0.5rem; }
-				footer.container { color: var(--pico-muted-color); font-size: 0.85rem; padding: 1rem 0; }
-				code { padding: 0.05rem 0.3rem; }
-			</style>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="/static/app.js" defer></script>
 		</head>
-		<body hx-ext="">
-			<header class="container">
-				<hgroup>
-					<h1>cnpg-portal</h1>
-					<p>Self-service DB platform on CloudNativePG</p>
-				</hgroup>
-				<nav>
-					<ul>
-						<li><a href="/" hx-boost="true">Tenants</a></li>
-					</ul>
-				</nav>
+		<body>
+			<a class="skip-link" href="#main">Skip to content</a>
+			<header class="app-bar">
+				<div class="app-bar__inner">
+					<a class="brand" href={ Route(ctx, "/") }>
+						<span class="brand__mark" aria-hidden="true">PG</span>
+						<span>CNPG Portal</span>
+					</a>
+					<span class="app-bar__spacer"></span>
+					if len(CurrentPage(ctx).Clusters) > 0 {
+						<div class="cluster-switch">
+							<label for="cluster-switcher">Cluster</label>
+							<select id="cluster-switcher" data-cluster-switcher aria-label="Active CNPG cluster">
+								for _, cluster := range CurrentPage(ctx).Clusters {
+									<option value={ cluster.URL } selected?={ cluster.Active }>
+										{ cluster.DisplayName } — { cluster.Namespace } / { cluster.ClusterName }
+									</option>
+								}
+							</select>
+						</div>
+					}
+					if CurrentPage(ctx).Login != "" {
+						<div class="identity">
+							<strong>{ CurrentPage(ctx).Login }</strong>
+							if CurrentPage(ctx).IsAdmin {
+								<span class="badge">Admin</span>
+							} else {
+								<span class="badge viewer">Viewer</span>
+							}
+						</div>
+					}
+				</div>
 			</header>
-			<main class="container">
+			<main id="main" class="shell">
 				{ children... }
 			</main>
-			<footer class="container">
+			<footer>
 				<small>cnpg-portal { version.Version } &middot; commit { version.Commit }</small>
 			</footer>
 		</body>
@@ -46,9 +58,9 @@ templ Layout(title string) {
 // ErrorPage renders a generic error frame for handler failures.
 templ ErrorPage(title, body string) {
 	@Layout(title) {
-		<article>
-			<header>{ title }</header>
-			<p>{ body }</p>
+		<article class="form-card">
+			<header><h2>{ title }</h2></header>
+			<p class="alert" role="alert">{ body }</p>
 		</article>
 	}
 }

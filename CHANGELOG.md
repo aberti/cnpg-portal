@@ -6,6 +6,32 @@ follows [Conventional Commits](https://www.conventionalcommits.org/) and
 
 ## [Unreleased] — initial public release
 
+### Multi-cluster
+
+- A workspace marker can now declare a catalog of CNPG targets and a
+  `default_cluster`.
+- CLI commands select a target through `--cluster` or
+  `CNPG_PORTAL_CLUSTER`.
+- Web routes are cluster-scoped under `/clusters/{id}/...`, with an
+  explicit cluster selector in the application bar.
+- Optional per-cluster `secret_prefix` prevents credential Secret name
+  collisions when clusters share a Kubernetes namespace.
+
+### Security and interface
+
+- Added strict mutation Origin checking with repeatable
+  `--allowed-origin` support for reverse-proxied public hosts.
+- Added CSP and defensive browser headers; assets are now self-hosted.
+- Web dump import accepts custom-format PostgreSQL dumps only. Remote URL
+  import is CLI-only.
+- SOPS Secrets are built and encrypted in memory before atomic writes, so
+  plaintext credentials are never written to the workspace.
+- Dependency and runtime toolchain versions were updated; release binaries
+  for SOPS and age are checksum-verified during image construction.
+- Reworked desktop and mobile views with cluster context, summary cards,
+  responsive tenant inventory, clearer ownership status, and explicit
+  operation/danger areas.
+
 ### Verbs
 
 - `cnpgctl new <app>` — provision a tenant: role, database, K8s Secret,

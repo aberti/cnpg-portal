@@ -12,6 +12,7 @@ coverage.txt
 
 # OMC harness state — assistant-only, not part of the project
 .omc/
+.omx/
 .claude/
 
 # Local env
@@ -44,3 +45,4 @@ secrets/**/*.yaml
 age.key
 .sops.age.key
 /tmp/
+/.runtime/

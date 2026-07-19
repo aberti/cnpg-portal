@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 
 	"github.com/aberti/cnpg-portal/internal/pg"
 	"github.com/aberti/cnpg-portal/internal/sops"
@@ -45,7 +43,7 @@ func Rotate(ctx context.Context, d Deps, app string, opts RotateOptions) (*Tenan
 	}
 
 	logger := slog.With("verb", "rotate", "app", app)
-	secretName := K8sSecretName(app)
+	secretName := d.Workspace.SecretName(app)
 
 	// Pre-flight: refuse if there is no dedicated role with this name.
 	// Many CNPG databases are owned by `postgres` (legacy migrations,
@@ -79,7 +77,7 @@ func Rotate(ctx context.Context, d Deps, app string, opts RotateOptions) (*Tenan
 	logger.Info("cluster secret updated", "secret", secretName)
 
 	// 3. Re-encrypt the SOPS Secret file in the workspace.
-	if err := writeSOPSSecret(ctx, d, app, secretName, newPassword); err != nil {
+	if err := writeSOPSSecret(d, app, secretName, newPassword); err != nil {
 		return nil, fmt.Errorf("write sops file: %w", err)
 	}
 	logger.Info("sops file rewritten", "path", d.Workspace.SecretPath(app))
@@ -119,25 +117,14 @@ func alterRolePassword(ctx context.Context, conn *pg.Conn, role, password string
 	return err
 }
 
-// writeSOPSSecret writes a fresh plaintext Secret YAML and SOPS-encrypts it
-// in place, replacing the existing file. Mirrors the encrypt path in
-// ensureSecretFile (provision.go).
-func writeSOPSSecret(ctx context.Context, d Deps, app, secretName, password string) error {
-	if err := sops.CheckAvailable(); err != nil {
-		return err
-	}
+// writeSOPSSecret builds and encrypts a Secret entirely in memory, then
+// atomically replaces the existing encrypted file.
+func writeSOPSSecret(d Deps, app, secretName, password string) error {
 	path := d.Workspace.SecretPath(app)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
 	body := buildSecretYAML(secretName, d.Workspace.Namespace, app, password)
-	if err := os.WriteFile(path, body, 0o600); err != nil {
+	encrypted, err := sops.EncryptForWorkspace(d.Workspace.Root, path, body)
+	if err != nil {
 		return err
 	}
-	if err := sops.EncryptInPlace(ctx, d.Workspace.Root, path); err != nil {
-		// Don't leave plaintext on disk if encryption failed.
-		_ = os.Remove(path)
-		return err
-	}
-	return os.Chmod(path, 0o644)
+	return sops.WriteEncryptedAtomic(path, encrypted)
 }
