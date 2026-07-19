@@ -13,6 +13,12 @@ func TestDefaultBranchDestination_typical(t *testing.T) {
 	}
 }
 
+func TestDefaultBranchDestination_externalDatabase(t *testing.T) {
+	if got := DefaultBranchDestination("stg-example1"); got != "stg_example1_dev" {
+		t.Errorf("got %q, want stg_example1_dev", got)
+	}
+}
+
 func TestDefaultBranchDestination_longSourceFits63(t *testing.T) {
 	// 59 letters + "_dev" = 63, the maximum IdentSafe length.
 	var b strings.Builder

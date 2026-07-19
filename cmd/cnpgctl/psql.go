@@ -28,8 +28,8 @@ out instead. Requires kubectl on PATH (mise pin in .mise.toml provides it).`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			app := args[0]
-			if !pg.IdentSafe(app) {
-				return fmt.Errorf("invalid tenant name %q", app)
+			if !pg.DatabaseNameSafe(app) {
+				return fmt.Errorf("invalid database name %q", app)
 			}
 			extra := args[1:]
 

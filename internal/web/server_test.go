@@ -304,6 +304,26 @@ func TestBranchAndDropFormsWithAdmin(t *testing.T) {
 	}
 }
 
+func TestExternallyManagedHyphenatedDatabaseRoutes(t *testing.T) {
+	h := newAdminTestRouter()
+	cases := []struct {
+		path string
+		want int
+	}{
+		{path: "/tenant/stg-example1", want: http.StatusServiceUnavailable},
+		{path: "/tenant/stg-example1/branch", want: http.StatusOK},
+		{path: "/tenant/stg-example1/conns", want: http.StatusServiceUnavailable},
+		{path: "/tenant/stg-example1/dump", want: http.StatusServiceUnavailable},
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if rec.Code != tc.want {
+			t.Errorf("%s status = %d, want %d", tc.path, rec.Code, tc.want)
+		}
+	}
+}
+
 func TestRestoreRouteRequiresAdmin(t *testing.T) {
 	srv := httptest.NewServer(newTestRouter())
 	defer srv.Close()

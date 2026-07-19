@@ -38,8 +38,8 @@ func Connections(ctx context.Context, d Deps, app string) ([]Connection, error) 
 	if d.PG == nil {
 		return nil, errors.New("Connections: PG dep is required")
 	}
-	if !pg.IdentSafe(app) {
-		return nil, fmt.Errorf("invalid tenant name %q", app)
+	if !pg.DatabaseNameSafe(app) {
+		return nil, fmt.Errorf("invalid database name %q", app)
 	}
 	rows, err := d.PG.RunQuery(ctx, "", fmt.Sprintf(connectionsSQL, pg.LiteralEscape(app)))
 	if err != nil {
@@ -69,8 +69,8 @@ func TerminateConnection(ctx context.Context, d Deps, app string, pid int) error
 	if d.PG == nil {
 		return errors.New("TerminateConnection: PG dep is required")
 	}
-	if !pg.IdentSafe(app) {
-		return fmt.Errorf("invalid tenant name %q", app)
+	if !pg.DatabaseNameSafe(app) {
+		return fmt.Errorf("invalid database name %q", app)
 	}
 	if pid <= 0 {
 		return fmt.Errorf("invalid pid %d", pid)

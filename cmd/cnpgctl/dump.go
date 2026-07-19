@@ -20,8 +20,8 @@ func newDumpCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			app := args[0]
-			if !pg.IdentSafe(app) {
-				return fmt.Errorf("invalid tenant name %q", app)
+			if !pg.DatabaseNameSafe(app) {
+				return fmt.Errorf("invalid database name %q", app)
 			}
 			deps, err := buildDeps(workspaceFlag, kubeconfigFlag)
 			if err != nil {

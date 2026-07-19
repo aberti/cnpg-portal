@@ -16,6 +16,9 @@ follows [Conventional Commits](https://www.conventionalcommits.org/) and
   explicit cluster selector in the application bar.
 - Optional per-cluster `secret_prefix` prevents credential Secret name
   collisions when clusters share a Kubernetes namespace.
+- Existing databases with hyphenated names and shared external owner roles
+  can be inspected, dumped, connected to, and used as branch sources without
+  exposing shared credentials or unsafe lifecycle controls.
 
 ### Security and interface
 

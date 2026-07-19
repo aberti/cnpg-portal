@@ -175,6 +175,18 @@ The web importer accepts only PostgreSQL custom-format (`PGDMP`) dumps.
 Plain SQL and remote-URL imports remain CLI-only because they require a
 trusted operator environment.
 
+### Externally managed databases
+
+Inventory also includes databases created outside CNPG Portal. Existing
+database names may contain hyphens even though new portal-managed roles use
+the stricter lowercase letters/digits/underscore format.
+
+When several databases share an external owner role, the portal supports
+status, active connections, dump, `psql`, and branching to a new managed
+tenant. It does not expose shared credentials or lifecycle actions that
+would rotate, re-own, restore, or drop resources controlled by the external
+application.
+
 Mutating verbs and data-exfiltration verbs (`dump`, `conns`, the
 connection-string panel) are **admin-gated**. Mutating verbs do **not**
 auto-push to your GitOps repo — they modify the workspace tree in

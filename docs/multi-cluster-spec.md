@@ -80,6 +80,10 @@ select or switch clusters internally.
 - Backup status and actions apply to the active CNPG resource.
 - Shared or unmanaged database owners are visible but password controls
   are hidden unless the database has a matching dedicated login role.
+- Existing externally managed database names may contain hyphens. Their
+  detail, activity, dump, `psql`, and branch-source paths remain available.
+- Databases using a shared external owner role do not expose portal
+  credential, sync, rotate, restore, or drop controls.
 - Remote URL import is CLI-only.
 - Browser dump import accepts PostgreSQL custom-format files only.
 
@@ -104,6 +108,8 @@ select or switch clusters internally.
 - CLI operations select the requested target.
 - URLs for two targets remain distinct through list, detail, form, and
   mutation flows.
+- A hyphenated database owned by a shared external role opens from
+  inventory and reports the actual owner role.
 - Equal tenant names produce distinct Secret names when prefixes differ.
 - Valid public proxy Origin variants are accepted.
 - Foreign, ambiguous, and unmarked mutation requests are rejected.

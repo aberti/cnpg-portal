@@ -24,7 +24,7 @@ const statusSQL = `SELECT
   COALESCE(r.rolconnlimit, -1) AS conn_limit
 FROM pg_database d
 LEFT JOIN pg_stat_database s ON s.datname = d.datname
-LEFT JOIN pg_roles r ON r.rolname = d.datname
+LEFT JOIN pg_roles r ON r.oid = d.datdba
 WHERE d.datname = '%s'`
 
 // ErrTenantNotFound signals Status couldn't find the requested database.
@@ -36,8 +36,8 @@ func Status(ctx context.Context, d Deps, app string) (*Tenant, error) {
 	if d.PG == nil {
 		return nil, errors.New("Status: PG dep is required")
 	}
-	if !pg.IdentSafe(app) {
-		return nil, fmt.Errorf("invalid tenant name %q", app)
+	if !pg.DatabaseNameSafe(app) {
+		return nil, fmt.Errorf("invalid database name %q", app)
 	}
 	rows, err := d.PG.RunQuery(ctx, "", fmt.Sprintf(statusSQL, pg.LiteralEscape(app)))
 	if err != nil {
@@ -54,16 +54,17 @@ func Status(ctx context.Context, d Deps, app string) (*Tenant, error) {
 	conns, _ := strconv.Atoi(strings.TrimSpace(r[3]))
 	connLimit, _ := strconv.Atoi(strings.TrimSpace(r[7]))
 	name := strings.TrimSpace(r[0])
+	owner := strings.TrimSpace(r[1])
 	secretName := K8sSecretName(name)
 	if d.Workspace != nil {
 		secretName = d.Workspace.SecretName(name)
 	}
 	return &Tenant{
 		Name:            name,
-		Role:            strings.TrimSpace(r[0]),
+		Role:            owner,
 		Database:        strings.TrimSpace(r[0]),
 		SecretName:      secretName,
-		Owner:           strings.TrimSpace(r[1]),
+		Owner:           owner,
 		SizeBytes:       size,
 		Connections:     conns,
 		Login:           parseBool(r[4]),

@@ -164,8 +164,8 @@ func (h *Handlers) importDumpFormError(w http.ResponseWriter, r *http.Request, p
 // BranchTenantForm serves GET /tenant/{name}/branch — admin-only page.
 func (h *Handlers) BranchTenantForm(w http.ResponseWriter, r *http.Request) {
 	src := chi.URLParam(r, "name")
-	if !pg.IdentSafe(src) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(src) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid database name", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -178,8 +178,8 @@ func (h *Handlers) BranchTenantForm(w http.ResponseWriter, r *http.Request) {
 // BranchTenantSubmit serves POST /tenant/{name}/branch.
 func (h *Handlers) BranchTenantSubmit(w http.ResponseWriter, r *http.Request) {
 	src := chi.URLParam(r, "name")
-	if !pg.IdentSafe(src) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid source tenant", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(src) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid source database", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -266,7 +266,7 @@ func (h *Handlers) SyncTenantSubmit(w http.ResponseWriter, r *http.Request) {
 
 	var errMsg string
 	switch {
-	case !pg.IdentSafe(src):
+	case !pg.DatabaseNameSafe(src):
 		errMsg = "Choose a source tenant from the list."
 	case src == dst:
 		errMsg = "Source must be different from the destination tenant."
@@ -570,8 +570,8 @@ func (h *Handlers) restoreFormWithError(w http.ResponseWriter, r *http.Request, 
 // pg_stat_activity view. Terminate buttons are rendered only for admins.
 func (h *Handlers) TenantConnections(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(name) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid database name", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if h.Deps.PG == nil {
@@ -596,8 +596,8 @@ func (h *Handlers) TenantConnections(w http.ResponseWriter, r *http.Request) {
 // TerminateTenantConnection serves POST /tenant/{name}/conns/{pid}/terminate.
 func (h *Handlers) TerminateTenantConnection(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(name) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid database name", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	pid, err := strconv.Atoi(chi.URLParam(r, "pid"))
@@ -652,15 +652,15 @@ func (h *Handlers) ListTenants(w http.ResponseWriter, r *http.Request) {
 }
 
 // TenantDetail serves GET /tenant/{name} — the focused per-tenant view.
-// Validates {name} via pg.IdentSafe before any DB call so untrusted URL
+// Validates {name} via pg.DatabaseNameSafe before any DB call so untrusted URL
 // segments never reach SQL. Maps tenant.ErrTenantNotFound to a dedicated
 // 404 page rather than a generic error frame.
 func (h *Handlers) TenantDetail(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
+	if !pg.DatabaseNameSafe(name) {
 		h.renderError(w, r, http.StatusBadRequest,
-			"invalid tenant name",
-			"Tenant names must match [a-z][a-z0-9_]{0,62}.")
+			"invalid database name",
+			"Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if h.Deps.PG == nil {
@@ -757,10 +757,10 @@ func (h *Handlers) TriggerBackup(w http.ResponseWriter, r *http.Request) {
 // `cnpgctl dump -o file` produces, restorable with `pg_restore`.
 func (h *Handlers) DumpTenant(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
+	if !pg.DatabaseNameSafe(name) {
 		h.renderError(w, r, http.StatusBadRequest,
-			"invalid tenant name",
-			"Tenant names must match [a-z][a-z0-9_]{0,62}.")
+			"invalid database name",
+			"Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if h.Deps.PG == nil {

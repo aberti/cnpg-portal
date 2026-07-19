@@ -27,7 +27,7 @@ templ TenantDetail(t *tenant.Tenant, creds *tenant.Credentials, isAdmin bool) {
 				if hasManagedRole(t) {
 					<span class="badge">Managed tenant</span>
 				} else {
-					<span class="badge viewer">Shared or unmanaged owner</span>
+					<span class="badge viewer">Externally managed database</span>
 				}
 			</div>
 		</div>
@@ -53,12 +53,23 @@ templ TenantDetail(t *tenant.Tenant, creds *tenant.Credentials, isAdmin bool) {
 					@kv("Create DB", boolStr(t.CreateDB))
 					@kv("Inherit", boolStr(t.Inherit))
 					@kv("Connection limit", connLimitStr(t.ConnectionLimit))
-					@kv("Secret", t.SecretName)
+					if hasManagedRole(t) {
+						@kv("Secret", t.SecretName)
+					} else {
+						@kv("Credentials", "Managed externally for owner role "+t.Owner)
+					}
 				</dl>
 			</article>
 		</div>
 		if isAdmin {
-			@connectionStrings(creds)
+			if hasManagedRole(t) {
+				@connectionStrings(creds)
+			} else {
+				<article>
+					<header><h2>Connection credentials</h2></header>
+					<p class="muted">This database uses the shared owner role <code>{ t.Owner }</code>. CNPG Portal does not display or rotate credentials managed by the external application.</p>
+				</article>
+			}
 			<article>
 				<header><h2>Live activity</h2></header>
 				<p><a href={ Route(ctx, "/tenant/" + t.Name + "/conns") }>View active connections</a></p>
@@ -69,28 +80,30 @@ templ TenantDetail(t *tenant.Tenant, creds *tenant.Credentials, isAdmin bool) {
 				<header><h2>Operations</h2></header>
 				<div class="toolbar" style="justify-content:flex-start;">
 					<a href={ Route(ctx, "/tenant/" + t.Name + "/branch") } class="button">Branch</a>
-					<a href={ Route(ctx, "/tenant/" + t.Name + "/sync") } class="button secondary">Sync from…</a>
 					if hasManagedRole(t) {
+						<a href={ Route(ctx, "/tenant/" + t.Name + "/sync") } class="button secondary">Sync from…</a>
 						<a href={ Route(ctx, "/tenant/" + t.Name + "/rotate") } class="button secondary">Rotate password</a>
+						<a href={ Route(ctx, "/tenant/" + t.Name + "/restore") } class="button secondary">Restore from backup</a>
 					}
-					<a href={ Route(ctx, "/tenant/" + t.Name + "/restore") } class="button secondary">Restore from backup</a>
 				</div>
 				if !hasManagedRole(t) {
-					<p class="muted"><small>Password actions are unavailable because this database is not owned by a dedicated role with the same name.</small></p>
+					<p class="muted"><small>Lifecycle and password actions remain with the external application because this database is owned by the shared role <code>{ t.Owner }</code>.</small></p>
 				}
 			</article>
-			<article class="danger-zone">
-				<header><h2>Danger zone</h2></header>
-				<p class="muted">Dropping a tenant permanently removes its database from <strong>{ CurrentPage(ctx).DisplayName }</strong>.</p>
-				<a href={ Route(ctx, "/tenant/" + t.Name + "/drop") } class="button danger">Drop tenant</a>
-			</article>
+			if hasManagedRole(t) {
+				<article class="danger-zone">
+					<header><h2>Danger zone</h2></header>
+					<p class="muted">Dropping a tenant permanently removes its database from <strong>{ CurrentPage(ctx).DisplayName }</strong>.</p>
+					<a href={ Route(ctx, "/tenant/" + t.Name + "/drop") } class="button danger">Drop tenant</a>
+				</article>
+			}
 		}
 		<article>
 			<header><h2>CLI</h2></header>
 			<pre><code>cnpgctl --cluster { CurrentPage(ctx).ClusterID } psql { t.Name }
 cnpgctl --cluster { CurrentPage(ctx).ClusterID } backup { t.Name }
 cnpgctl --cluster { CurrentPage(ctx).ClusterID } dump { t.Name } -o { t.Name }.dump
-cnpgctl --cluster { CurrentPage(ctx).ClusterID } branch { t.Name } { t.Name }_dev</code></pre>
+cnpgctl --cluster { CurrentPage(ctx).ClusterID } branch { t.Name } { tenant.DefaultBranchDestination(t.Name) }</code></pre>
 			<small>Equivalent CLI commands are kept for automation and recovery.</small>
 		</article>
 	}
