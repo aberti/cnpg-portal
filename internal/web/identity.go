@@ -41,6 +41,10 @@ type Auth struct {
 	DevLogin string
 	Admins   *AdminList
 
+	// AllowedOrigins contains public HTTPS origins accepted for mutation
+	// requests when PGM is behind a reverse proxy whose internal Host differs.
+	AllowedOrigins []string
+
 	// BearerToken + BearerIdentity enable Authorization: Bearer <token> without
 	// Tailscale headers (Traefik, port-forward, etc.). Token compared in
 	// constant time; identity is always treated as admin when bearer is configured.
@@ -142,19 +146,11 @@ func bearerTokensEqual(expected, got string) bool {
 	return subtle.ConstantTimeCompare([]byte(expected), []byte(got)) == 1
 }
 
-// requestClientIP returns the leftmost X-Forwarded-For hop, else X-Real-Ip, else RemoteAddr.
+// requestClientIP intentionally ignores forwarding headers. Trusting
+// client-supplied X-Forwarded-For would let a caller spoof Tailscale CGNAT
+// and obtain the fallback identity. PGM's supported deployment terminates
+// Tailscale on the same host, so RemoteAddr is authoritative.
 func requestClientIP(r *http.Request) net.IP {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		if ip := net.ParseIP(strings.TrimSpace(parts[0])); ip != nil {
-			return ip
-		}
-	}
-	if xri := r.Header.Get("X-Real-Ip"); xri != "" {
-		if ip := net.ParseIP(strings.TrimSpace(xri)); ip != nil {
-			return ip
-		}
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return net.ParseIP(r.RemoteAddr)

@@ -61,9 +61,9 @@ func ListBackups(ctx context.Context, dyn dynamic.Interface, namespace, clusterN
 	}
 	if clusterName != "" {
 		filtered := out[:0]
-		for _, b := range out {
-			if b.Cluster == clusterName {
-				filtered = append(filtered, b)
+		for i := range out {
+			if out[i].Cluster == clusterName {
+				filtered = append(filtered, out[i])
 			}
 		}
 		out = filtered
@@ -76,9 +76,9 @@ func ListBackups(ctx context.Context, dyn dynamic.Interface, namespace, clusterN
 // or a zero-valued Backup if none. Input is assumed to already be sorted
 // newest first (as ListBackups returns).
 func LatestCompleted(backups []Backup) Backup {
-	for _, b := range backups {
-		if b.Phase == PhaseCompleted {
-			return b
+	for i := range backups {
+		if backups[i].Phase == PhaseCompleted {
+			return backups[i]
 		}
 	}
 	return Backup{}

@@ -5,7 +5,8 @@ A single Go binary (`cnpgctl`) provides a CLI and a web UI for daily
 PostgreSQL tenant operations: create / list / branch / rotate / dump /
 restore / drop, plus a connection-string copy panel that renders the
 live in-cluster Secret in 6 formats (URL, Prisma, libpq, JDBC, env,
-ready-to-paste `psql`).
+ready-to-paste `psql`). One portal can manage multiple CNPG `Cluster`
+resources through an explicit cluster catalog and path-scoped web UI.
 
 State of record stays in **your** GitOps repo. Every mutation reads
 or writes a SOPS-encrypted Secret + the CNPG `Cluster` resource's
@@ -13,20 +14,23 @@ or writes a SOPS-encrypted Secret + the CNPG `Cluster` resource's
 
 ## Screenshots
 
-![Tenant list](docs/screenshots/list.png)
-![Tenant detail](docs/screenshots/tenant.png)
+![Multi-cluster tenant inventory populated with synthetic example data](docs/screenshots/list.png)
+![Tenant detail populated with synthetic example data](docs/screenshots/tenant.png)
+![Responsive tenant inventory populated with synthetic example data](docs/screenshots/list-mobile.png)
+
+The screenshots contain synthetic names and credentials only. Their fixture
+contract is documented in [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 ## Who this is for
 
-A solo operator or small team running **one** CNPG cluster with a
-handful of tenants, already using SOPS + age + GitOps. Single-cluster
-and opinionated. If you run dozens of clusters or have a real
-multi-tenant SaaS, look elsewhere.
+A solo operator or small team running a handful of CNPG clusters and tenants,
+already using SOPS + age + GitOps. It stays intentionally small and
+operator-oriented rather than becoming a separate control-plane database.
 
 ## Prerequisites
 
 - A Kubernetes cluster with the [CloudNativePG operator](https://cloudnative-pg.io/documentation/current/installation_upgrade/) installed.
-- One running CNPG `Cluster` (single primary).
+- One or more running CNPG `Cluster` resources (single primary each).
 - A kubeconfig reachable from the host that runs the portal.
 - An age key pair (`age-keygen`).
 - A GitOps workspace repo following the [conventions](#workspace-conventions) below.
@@ -43,7 +47,18 @@ docker compose up -d
 ```
 
 Open `http://127.0.0.1:8080/`, or front it with `tailscale serve --bg 8080`
-to reach `https://<host>.<tailnet>.ts.net/` from any tailnet device.
+to reach `https://<host>.<tailnet>.ts.net/` from any tailnet device. If
+another local service already owns `8080`, change `--addr` in
+`docker-compose.override.yml` and run `tailscale serve --bg <same-port>`.
+When a reverse proxy exposes a different public host, also pass its exact
+origin, for example:
+
+```yaml
+- --allowed-origin=https://dev.example-tailnet.ts.net
+```
+
+The option is repeatable. It applies only to browser mutation requests;
+unknown origins remain rejected.
 
 ## Bashrc helpers
 
@@ -65,24 +80,43 @@ use it to debug auth / path issues.
 A Git repo containing:
 
 - `.cnpg-portal-workspace` (root) — marker file pointing at paths and
-  declaring the cluster's identity:
+  declaring one or more cluster targets:
 
   ```yaml
-  cluster_yaml: database/my-cluster/cluster.yaml
-  secrets_dir:  secrets/pg
-  namespace:    pg
-  pod:          my-cluster-1
-  container:    postgres
-  # Optional — leave both unset for the simplest CNPG setup.
-  cluster_name: my-cluster        # CNPG Cluster CR name (default: derived from `pod`).
-  service_name: my-cluster        # DNS prefix in DSNs (default: cluster_name).
+  default_cluster: primary
+  clusters:
+    primary:
+      display_name: Primary workloads
+      cluster_yaml: database/primary/cluster.yaml
+      secrets_dir: secrets/pg
+      namespace: pg
+      pod: postgres-main-1
+      container: postgres
+      cluster_name: postgres-main
+      service_name: postgres-main
+    analytics:
+      display_name: Analytics
+      cluster_yaml: database/analytics/cluster.yaml
+      secrets_dir: secrets/pg
+      namespace: pg
+      pod: postgres-analytics-1
+      container: postgres
+      cluster_name: postgres-analytics
+      service_name: postgres-analytics
+      secret_prefix: analytics
   ```
+
+  Existing flat, single-cluster markers remain supported. In a multi-cluster
+  catalog, web URLs are scoped as `/clusters/<id>/...`; CLI commands accept
+  `--cluster <id>` or `$CNPG_PORTAL_CLUSTER`. Use `secret_prefix` when two
+  targets share a Kubernetes namespace so equal tenant names cannot overwrite
+  each other's credential Secret.
 
   `cluster_name` drives backup/restore/list operations against the CNPG
   `Cluster` CR. `service_name` is what appears in connection strings as
   `<service_name>-rw.<namespace>.svc.cluster.local`. Set them to different
   values when you've added an alias-Service layer (e.g. `cluster_name:
-  pg-primary-17`, `service_name: pg-primary`) so PG-major upgrades flip
+  postgres-main-v2`, `service_name: postgres-main`) so cluster replacements flip
   one selector instead of rewriting every app's `DATABASE_URL`. With
   both unset, `cnpgctl` strips the trailing `-N` instance suffix from
   `pod` to recover `cluster_name`, then uses it for both — matching
@@ -122,20 +156,36 @@ Provide the `Cluster` CR yourself (see CNPG docs for templates).
 
 | Verb | CLI | UI route |
 |------|-----|----|
-| Create tenant | `cnpgctl new <app>` | `/new` |
-| List | `cnpgctl list` | `/` |
-| Per-tenant detail | `cnpgctl status <app>` | `/tenant/{name}` |
-| `psql` shell | `cnpgctl psql <app>` | — |
-| Branch | `cnpgctl branch <src> <dst>` | `/tenant/{name}/branch` |
-| Sync (overwrite dst with src) | `cnpgctl sync <src> <dst> --yes-i-mean-it` | `/tenant/{name}/sync` |
-| On-demand backup | `cnpgctl backup <app>` | header button |
-| Stream `pg_dump -Fc` | `cnpgctl dump <app> -o file` | `/tenant/{name}/dump` |
-| Drop | `cnpgctl drop <app> --yes-i-mean-it` | `/tenant/{name}/drop` |
-| Rotate password | `cnpgctl rotate <app> --yes-i-mean-it` | `/tenant/{name}/rotate` |
-| Active sessions | — | `/tenant/{name}/conns` |
-| Restore from `Backup` CR | `cnpgctl restore <app> --backup=<name>` | `/tenant/{name}/restore` |
-| Import dump file | `cnpgctl import-dump <app> --file <path>` | `/new/import-dump` |
-| Import from external DSN | `cnpgctl import-url <app> --from-url <DSN>` | `/new/import-url` |
+| Create tenant | `cnpgctl --cluster <id> new <app>` | `/clusters/{id}/new` |
+| List | `cnpgctl --cluster <id> list` | `/clusters/{id}/` |
+| Per-tenant detail | `cnpgctl --cluster <id> status <app>` | `/clusters/{id}/tenant/{name}` |
+| `psql` shell | `cnpgctl --cluster <id> psql <app>` | — |
+| Branch | `cnpgctl --cluster <id> branch <src> <dst>` | `/clusters/{id}/tenant/{name}/branch` |
+| Sync (overwrite dst with src) | `cnpgctl --cluster <id> sync <src> <dst> --yes-i-mean-it` | `/clusters/{id}/tenant/{name}/sync` |
+| On-demand backup | `cnpgctl --cluster <id> backup <app>` | cluster header button |
+| Stream `pg_dump -Fc` | `cnpgctl --cluster <id> dump <app> -o file` | `/clusters/{id}/tenant/{name}/dump` |
+| Drop | `cnpgctl --cluster <id> drop <app> --yes-i-mean-it` | `/clusters/{id}/tenant/{name}/drop` |
+| Rotate password | `cnpgctl --cluster <id> rotate <app> --yes-i-mean-it` | `/clusters/{id}/tenant/{name}/rotate` |
+| Active sessions | — | `/clusters/{id}/tenant/{name}/conns` |
+| Restore from `Backup` CR | `cnpgctl --cluster <id> restore <app> --backup=<name>` | `/clusters/{id}/tenant/{name}/restore` |
+| Import custom-format dump | `cnpgctl --cluster <id> import-dump <app> --file <path>` | `/clusters/{id}/new/import-dump` |
+| Import from external DSN | `cnpgctl --cluster <id> import-url <app> --from-url <DSN>` | CLI only |
+
+The web importer accepts only PostgreSQL custom-format (`PGDMP`) dumps.
+Plain SQL and remote-URL imports remain CLI-only because they require a
+trusted operator environment.
+
+### Externally managed databases
+
+Inventory also includes databases created outside CNPG Portal. Existing
+database names may contain hyphens even though new portal-managed roles use
+the stricter lowercase letters/digits/underscore format.
+
+When several databases share an external owner role, the portal supports
+status, active connections, dump, `psql`, and branching to a new managed
+tenant. It does not expose shared credentials or lifecycle actions that
+would rotate, re-own, restore, or drop resources controlled by the external
+application.
 
 Mutating verbs and data-exfiltration verbs (`dump`, `conns`, the
 connection-string panel) are **admin-gated**. Mutating verbs do **not**
@@ -171,6 +221,11 @@ The shipped `docker-compose.yml` has no auth flags set — vanilla
 `docker compose up -d` 403s every request. Configure auth via the
 override file. See [`docker-compose.override.yml.example`](docker-compose.override.yml.example).
 
+When using Tailscale Serve, do not enable `--dev-login`. Let Tailscale
+provide the identity header, use an explicit admin list, and configure
+`--allowed-origin` if the public hostname differs from the internal
+listener host.
+
 ## Architecture
 
 ```
@@ -202,6 +257,11 @@ make test lint                               # before pushing
 
 CLI and web UI share `internal/tenant/`. Keep verbs pure (deps in,
 result + error out) and idempotent.
+
+The public multi-cluster behavior and acceptance criteria are recorded in
+[`docs/multi-cluster-spec.md`](docs/multi-cluster-spec.md). Deployment
+hardening and the remaining roadmap are in
+[`docs/deployment-and-security.md`](docs/deployment-and-security.md).
 
 ## Layout
 

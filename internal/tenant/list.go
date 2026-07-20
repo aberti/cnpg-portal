@@ -69,7 +69,7 @@ func parseListRow(r []string) (Tenant, bool) {
 	conns, _ := strconv.Atoi(strings.TrimSpace(r[3]))
 	return Tenant{
 		Name:        name,
-		Role:        name,
+		Role:        strings.TrimSpace(r[1]),
 		Database:    name,
 		SecretName:  K8sSecretName(name),
 		Owner:       strings.TrimSpace(r[1]),

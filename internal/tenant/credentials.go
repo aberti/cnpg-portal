@@ -62,7 +62,7 @@ func ReadCredentials(ctx context.Context, d Deps, app string) (*Credentials, err
 	}
 
 	ns := d.Workspace.Namespace
-	secretName := K8sSecretName(app)
+	secretName := d.Workspace.SecretName(app)
 	sec, err := d.K8s.Clientset.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {

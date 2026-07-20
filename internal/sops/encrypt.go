@@ -15,8 +15,98 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 )
+
+type workspaceConfig struct {
+	CreationRules []struct {
+		PathRegex string `yaml:"path_regex"`
+		Age       string `yaml:"age"`
+	} `yaml:"creation_rules"`
+}
+
+// EncryptForWorkspace resolves the age recipient from the workspace's
+// matching .sops.yaml rule and encrypts plain entirely in memory.
+func EncryptForWorkspace(workspaceRoot, targetPath string, plain []byte) ([]byte, error) {
+	configData, err := os.ReadFile(filepath.Join(workspaceRoot, ".sops.yaml"))
+	if err != nil {
+		return nil, fmt.Errorf("read workspace .sops.yaml: %w", err)
+	}
+	var config workspaceConfig
+	if err := yaml.Unmarshal(configData, &config); err != nil {
+		return nil, fmt.Errorf("parse workspace .sops.yaml: %w", err)
+	}
+	rel, err := filepath.Rel(workspaceRoot, targetPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve target path: %w", err)
+	}
+	rel = filepath.ToSlash(rel)
+	for _, rule := range config.CreationRules {
+		if rule.PathRegex == "" || rule.Age == "" {
+			continue
+		}
+		re, err := regexp.Compile(rule.PathRegex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SOPS path_regex %q: %w", rule.PathRegex, err)
+		}
+		if !re.MatchString(rel) {
+			continue
+		}
+		recipients := strings.FieldsFunc(rule.Age, func(r rune) bool {
+			return r == ',' || r == '\n'
+		})
+		if len(recipients) != 1 {
+			return nil, fmt.Errorf("matched SOPS rule must contain exactly one age recipient")
+		}
+		return EncryptYAMLForRecipient(plain, strings.TrimSpace(recipients[0]))
+	}
+	return nil, fmt.Errorf("no .sops.yaml creation rule matches %q", rel)
+}
+
+// WriteEncryptedAtomic writes already encrypted data beside the destination
+// and atomically renames it into place. Plaintext never touches the workspace.
+func WriteEncryptedAtomic(path string, encrypted []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".cnpg-portal-encrypted-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		cleanup()
+		return err
+	}
+	if _, err := tmp.Write(encrypted); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	return nil
+}
 
 // EncryptInPlace runs `sops --encrypt --in-place <path>`. Requires `sops`
 // on PATH. cwd is set to workspaceRoot so SOPS resolves the .sops.yaml

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -22,9 +23,16 @@ import (
 // Handlers groups every HTTP handler against shared deps + logger so the
 // chi router stays a thin wiring layer.
 type Handlers struct {
-	Deps   tenant.Deps
-	Logger *slog.Logger
-	Auth   Auth
+	Deps        tenant.Deps
+	Logger      *slog.Logger
+	Auth        Auth
+	ClusterID   string
+	DisplayName string
+	BasePath    string
+}
+
+func (h *Handlers) route(path string) string {
+	return strings.TrimSuffix(h.BasePath, "/") + "/" + strings.TrimPrefix(path, "/")
 }
 
 // NewTenantForm serves GET /new — admin-only page with tenant creation form.
@@ -114,6 +122,15 @@ func (h *Handlers) ImportDumpSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = file.Close() }()
+	var magic [5]byte
+	if _, err := io.ReadFull(file, magic[:]); err != nil || string(magic[:]) != "PGDMP" {
+		h.importDumpFormError(w, r, app, "Only PostgreSQL custom-format dumps created with pg_dump -Fc are accepted. Plain SQL imports are disabled in the web UI.")
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		h.importDumpFormError(w, r, app, "Could not rewind the uploaded dump.")
+		return
+	}
 
 	id, _ := IdentityFrom(r.Context())
 	h.Logger.Info("audit",
@@ -144,72 +161,11 @@ func (h *Handlers) importDumpFormError(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
-// ImportURLForm serves GET /new/import-url.
-func (h *Handlers) ImportURLForm(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ImportURLForm("", "").Render(r.Context(), w); err != nil {
-		h.Logger.Error("render import URL form", "err", err)
-	}
-}
-
-// ImportURLSubmit serves POST /new/import-url — tenant.ImportFromRemoteURL.
-func (h *Handlers) ImportURLSubmit(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		h.importURLFormError(w, r, "", "invalid form")
-		return
-	}
-	app := strings.TrimSpace(r.FormValue("app"))
-	dbURL := strings.TrimSpace(r.FormValue("database_url"))
-	if !pg.IdentSafe(app) {
-		h.importURLFormError(w, r, app, "Tenant names must match [a-z][a-z0-9_]{0,62}.")
-		return
-	}
-	if h.Deps.K8s == nil || h.Deps.PG == nil || h.Deps.Workspace == nil {
-		h.renderError(w, r, http.StatusServiceUnavailable,
-			"dependencies not configured",
-			"cnpgctl serve was started without K8s/PG/workspace deps; check --workspace and --kubeconfig.")
-		return
-	}
-
-	id, _ := IdentityFrom(r.Context())
-	hostLog := "(invalid)"
-	if u, err := url.Parse(dbURL); err == nil && u.Hostname() != "" {
-		hostLog = u.Hostname()
-	}
-	h.Logger.Info("audit",
-		"event", "tenant.import_url",
-		"user", id.Login,
-		"tenant", app,
-		"remote_host", hostLog,
-		"rid", RequestID(r.Context()),
-	)
-
-	t, err := tenant.ImportFromRemoteURL(r.Context(), h.Deps, app, dbURL)
-	if err != nil {
-		h.Logger.Error("import url", "err", err, "tenant", app)
-		h.renderError(w, r, http.StatusInternalServerError, "Import failed", err.Error())
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.NewTenantCreated(t).Render(r.Context(), w); err != nil {
-		h.Logger.Error("render tenant created page", "err", err)
-	}
-}
-
-func (h *Handlers) importURLFormError(w http.ResponseWriter, r *http.Request, prefillApp, msg string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusBadRequest)
-	if err := templates.ImportURLForm(prefillApp, msg).Render(r.Context(), w); err != nil {
-		h.Logger.Error("render import URL form with error", "err", err)
-	}
-}
-
 // BranchTenantForm serves GET /tenant/{name}/branch — admin-only page.
 func (h *Handlers) BranchTenantForm(w http.ResponseWriter, r *http.Request) {
 	src := chi.URLParam(r, "name")
-	if !pg.IdentSafe(src) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(src) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid database name", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -222,8 +178,8 @@ func (h *Handlers) BranchTenantForm(w http.ResponseWriter, r *http.Request) {
 // BranchTenantSubmit serves POST /tenant/{name}/branch.
 func (h *Handlers) BranchTenantSubmit(w http.ResponseWriter, r *http.Request) {
 	src := chi.URLParam(r, "name")
-	if !pg.IdentSafe(src) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid source tenant", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(src) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid source database", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -310,7 +266,7 @@ func (h *Handlers) SyncTenantSubmit(w http.ResponseWriter, r *http.Request) {
 
 	var errMsg string
 	switch {
-	case !pg.IdentSafe(src):
+	case !pg.DatabaseNameSafe(src):
 		errMsg = "Choose a source tenant from the list."
 	case src == dst:
 		errMsg = "Source must be different from the destination tenant."
@@ -506,7 +462,8 @@ func (h *Handlers) RestoreTenantForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	choices := make([]templates.RestoreBackupChoice, 0, len(backups))
-	for _, b := range backups {
+	for i := range backups {
+		b := &backups[i]
 		if b.Phase != cnpg.PhaseCompleted {
 			continue
 		}
@@ -591,7 +548,8 @@ func (h *Handlers) restoreFormWithError(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	choices := make([]templates.RestoreBackupChoice, 0, len(backups))
-	for _, b := range backups {
+	for i := range backups {
+		b := &backups[i]
 		if b.Phase != cnpg.PhaseCompleted {
 			continue
 		}
@@ -612,8 +570,8 @@ func (h *Handlers) restoreFormWithError(w http.ResponseWriter, r *http.Request, 
 // pg_stat_activity view. Terminate buttons are rendered only for admins.
 func (h *Handlers) TenantConnections(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(name) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid database name", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if h.Deps.PG == nil {
@@ -638,8 +596,8 @@ func (h *Handlers) TenantConnections(w http.ResponseWriter, r *http.Request) {
 // TerminateTenantConnection serves POST /tenant/{name}/conns/{pid}/terminate.
 func (h *Handlers) TerminateTenantConnection(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
-		h.renderError(w, r, http.StatusBadRequest, "invalid tenant name", "Tenant names must match [a-z][a-z0-9_]{0,62}.")
+	if !pg.DatabaseNameSafe(name) {
+		h.renderError(w, r, http.StatusBadRequest, "invalid database name", "Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	pid, err := strconv.Atoi(chi.URLParam(r, "pid"))
@@ -664,7 +622,7 @@ func (h *Handlers) TerminateTenantConnection(w http.ResponseWriter, r *http.Requ
 		h.renderError(w, r, http.StatusInternalServerError, "Failed to terminate connection", err.Error())
 		return
 	}
-	http.Redirect(w, r, "/tenant/"+name+"/conns?msg="+url.QueryEscape(fmt.Sprintf("terminated pid %d", pid)), http.StatusSeeOther)
+	http.Redirect(w, r, h.route("/tenant/"+name+"/conns")+"?msg="+url.QueryEscape(fmt.Sprintf("terminated pid %d", pid)), http.StatusSeeOther)
 }
 
 // ListTenants serves GET / — the tenant inventory table.
@@ -694,15 +652,15 @@ func (h *Handlers) ListTenants(w http.ResponseWriter, r *http.Request) {
 }
 
 // TenantDetail serves GET /tenant/{name} — the focused per-tenant view.
-// Validates {name} via pg.IdentSafe before any DB call so untrusted URL
+// Validates {name} via pg.DatabaseNameSafe before any DB call so untrusted URL
 // segments never reach SQL. Maps tenant.ErrTenantNotFound to a dedicated
 // 404 page rather than a generic error frame.
 func (h *Handlers) TenantDetail(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
+	if !pg.DatabaseNameSafe(name) {
 		h.renderError(w, r, http.StatusBadRequest,
-			"invalid tenant name",
-			"Tenant names must match [a-z][a-z0-9_]{0,62}.")
+			"invalid database name",
+			"Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if h.Deps.PG == nil {
@@ -730,9 +688,13 @@ func (h *Handlers) TenantDetail(w http.ResponseWriter, r *http.Request) {
 	// only enriches the "Connection strings" panel. A missing/locked Secret
 	// degrades to a render-time placeholder rather than a 500 — the tenant
 	// list is still useful when ESO is mid-sync or RBAC is incomplete.
-	creds, credsErr := tenant.ReadCredentials(r.Context(), h.Deps, name)
-	if credsErr != nil && !errors.Is(credsErr, tenant.ErrCredentialsNotFound) {
-		h.Logger.Warn("read credentials", "err", credsErr, "tenant", name)
+	var creds *tenant.Credentials
+	if t.Owner == t.Name && t.Login {
+		var credsErr error
+		creds, credsErr = tenant.ReadCredentials(r.Context(), h.Deps, name)
+		if credsErr != nil && !errors.Is(credsErr, tenant.ErrCredentialsNotFound) {
+			h.Logger.Warn("read credentials", "err", credsErr, "tenant", name)
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -795,10 +757,10 @@ func (h *Handlers) TriggerBackup(w http.ResponseWriter, r *http.Request) {
 // `cnpgctl dump -o file` produces, restorable with `pg_restore`.
 func (h *Handlers) DumpTenant(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if !pg.IdentSafe(name) {
+	if !pg.DatabaseNameSafe(name) {
 		h.renderError(w, r, http.StatusBadRequest,
-			"invalid tenant name",
-			"Tenant names must match [a-z][a-z0-9_]{0,62}.")
+			"invalid database name",
+			"Database names must match [a-z][a-z0-9_-]{0,62}.")
 		return
 	}
 	if h.Deps.PG == nil {
@@ -820,6 +782,10 @@ func (h *Handlers) DumpTenant(w http.ResponseWriter, r *http.Request) {
 
 // renderBackupResult writes the BackupStatus partial back through htmx.
 func (h *Handlers) renderBackupResult(w http.ResponseWriter, r *http.Request, b *cnpg.Backup, errMsg string) {
+	if r.Header.Get("HX-Request") != "true" {
+		http.Redirect(w, r, h.route("/"), http.StatusSeeOther)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := templates.BackupStatus(false, b, errMsg, true).Render(r.Context(), w); err != nil {
 		h.Logger.Error("render backup status", "err", err)
@@ -829,6 +795,9 @@ func (h *Handlers) renderBackupResult(w http.ResponseWriter, r *http.Request, b 
 // renderError sends an HTML error page with the provided HTTP status.
 // Used for handler-level failures (DB errors, missing deps).
 func (h *Handlers) renderError(w http.ResponseWriter, r *http.Request, status int, title, body string) {
+	if status >= http.StatusInternalServerError {
+		body = "The operation failed. Check the server log with request ID " + RequestID(r.Context()) + "."
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if err := templates.ErrorPage(title, body).Render(r.Context(), w); err != nil {

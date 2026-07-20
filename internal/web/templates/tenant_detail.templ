@@ -16,61 +16,94 @@ templ TenantDetail(t *tenant.Tenant, creds *tenant.Credentials, isAdmin bool) {
 	@Layout("cnpg-portal — " + t.Name) {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li>{ t.Name }</li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li aria-current="page">{ t.Name }</li>
 			</ul>
 		</nav>
-		<h2>{ t.Name }</h2>
-		<article>
-			<header>Database</header>
-			@kv("name", t.Database)
-			@kv("owner role", t.Owner)
-			@kv("size", tenant.FormatBytes(t.SizeBytes))
-			@kv("connections", fmt.Sprintf("%d", t.Connections))
-			if t.LastBackup != "" {
-				@kv("last cluster backup", t.LastBackup)
-			} else {
-				@kv("last cluster backup", "—")
-			}
-		</article>
-		<article>
-			<header>Role attributes</header>
-			@kv("login", boolStr(t.Login))
-			@kv("createdb", boolStr(t.CreateDB))
-			@kv("inherit", boolStr(t.Inherit))
-			@kv("connection limit", connLimitStr(t.ConnectionLimit))
-			@kv("secret", t.SecretName)
-		</article>
-		if isAdmin {
-			@connectionStrings(creds)
+		<div class="page-heading">
+			<div>
+				<p class="eyebrow">{ CurrentPage(ctx).DisplayName }</p>
+				<h1>{ t.Name }</h1>
+				if hasManagedRole(t) {
+					<span class="badge">Managed tenant</span>
+				} else {
+					<span class="badge viewer">Externally managed database</span>
+				}
+			</div>
+		</div>
+		<div class="cards">
 			<article>
-				<header>Live activity</header>
-				<p><a href={ templ.URL("/tenant/" + t.Name + "/conns") } hx-boost="true">View active connections</a></p>
+				<header><h2>Database</h2></header>
+				<dl class="kv">
+					@kv("Name", t.Database)
+					@kv("Owner role", t.Owner)
+					@kv("Size", tenant.FormatBytes(t.SizeBytes))
+					@kv("Connections", fmt.Sprintf("%d", t.Connections))
+					if t.LastBackup != "" {
+						@kv("Last cluster backup", t.LastBackup)
+					} else {
+						@kv("Last cluster backup", "—")
+					}
+				</dl>
+			</article>
+			<article>
+				<header><h2>Role attributes</h2></header>
+				<dl class="kv">
+					@kv("Login", boolStr(t.Login))
+					@kv("Create DB", boolStr(t.CreateDB))
+					@kv("Inherit", boolStr(t.Inherit))
+					@kv("Connection limit", connLimitStr(t.ConnectionLimit))
+					if hasManagedRole(t) {
+						@kv("Secret", t.SecretName)
+					} else {
+						@kv("Credentials", "Managed externally for owner role "+t.Owner)
+					}
+				</dl>
+			</article>
+		</div>
+		if isAdmin {
+			if hasManagedRole(t) {
+				@connectionStrings(creds)
+			} else {
+				<article>
+					<header><h2>Connection credentials</h2></header>
+					<p class="muted">This database uses the shared owner role <code>{ t.Owner }</code>. CNPG Portal does not display or rotate credentials managed by the external application.</p>
+				</article>
+			}
+			<article>
+				<header><h2>Live activity</h2></header>
+				<p><a href={ Route(ctx, "/tenant/" + t.Name + "/conns") }>View active connections</a></p>
 			</article>
 		}
 		if isAdmin {
 			<article>
-				<header>Admin actions</header>
-				<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-					<a href={ templ.URL("/tenant/" + t.Name + "/branch") } role="button" class="contrast" hx-boost="true">Branch</a>
-					<a href={ templ.URL("/tenant/" + t.Name + "/sync") } role="button" class="contrast secondary" hx-boost="true">Sync from…</a>
+				<header><h2>Operations</h2></header>
+				<div class="toolbar" style="justify-content:flex-start;">
+					<a href={ Route(ctx, "/tenant/" + t.Name + "/branch") } class="button">Branch</a>
 					if hasManagedRole(t) {
-						<a href={ templ.URL("/tenant/" + t.Name + "/rotate") } role="button" class="outline" hx-boost="true">Rotate password</a>
+						<a href={ Route(ctx, "/tenant/" + t.Name + "/sync") } class="button secondary">Sync from…</a>
+						<a href={ Route(ctx, "/tenant/" + t.Name + "/rotate") } class="button secondary">Rotate password</a>
+						<a href={ Route(ctx, "/tenant/" + t.Name + "/restore") } class="button secondary">Restore from backup</a>
 					}
-					<a href={ templ.URL("/tenant/" + t.Name + "/drop") } role="button" class="contrast secondary" hx-boost="true">Drop</a>
-					<a href={ templ.URL("/tenant/" + t.Name + "/restore") } role="button" class="outline" hx-boost="true">Restore from backup</a>
 				</div>
 				if !hasManagedRole(t) {
-					<p><small><em>Rotate password is hidden because this database has no dedicated user (owner: <code>{ t.Owner }</code>). Run <code>cnpgctl new { t.Name }</code> first to onboard it as a managed tenant.</em></small></p>
+					<p class="muted"><small>Lifecycle and password actions remain with the external application because this database is owned by the shared role <code>{ t.Owner }</code>.</small></p>
 				}
 			</article>
+			if hasManagedRole(t) {
+				<article class="danger-zone">
+					<header><h2>Danger zone</h2></header>
+					<p class="muted">Dropping a tenant permanently removes its database from <strong>{ CurrentPage(ctx).DisplayName }</strong>.</p>
+					<a href={ Route(ctx, "/tenant/" + t.Name + "/drop") } class="button danger">Drop tenant</a>
+				</article>
+			}
 		}
 		<article>
-			<header>CLI</header>
-			<pre><code>cnpgctl psql { t.Name }
-cnpgctl backup { t.Name }
-cnpgctl dump { t.Name } -o { t.Name }.dump
-cnpgctl branch { t.Name } { t.Name }_dev</code></pre>
+			<header><h2>CLI</h2></header>
+			<pre><code>cnpgctl --cluster { CurrentPage(ctx).ClusterID } psql { t.Name }
+cnpgctl --cluster { CurrentPage(ctx).ClusterID } backup { t.Name }
+cnpgctl --cluster { CurrentPage(ctx).ClusterID } dump { t.Name } -o { t.Name }.dump
+cnpgctl --cluster { CurrentPage(ctx).ClusterID } branch { t.Name } { tenant.DefaultBranchDestination(t.Name) }</code></pre>
 			<small>Equivalent CLI commands are kept for automation and recovery.</small>
 		</article>
 	}
@@ -81,7 +114,7 @@ cnpgctl branch { t.Name } { t.Name }_dev</code></pre>
 // notice that points to the runbook instead of a stack-trace 500.
 templ connectionStrings(creds *tenant.Credentials) {
 	<article>
-		<header>Connection strings</header>
+		<header><h2>Connection strings</h2></header>
 		if creds == nil {
 			<p>
 				<small>
@@ -113,37 +146,24 @@ templ hostKV(c *tenant.Credentials) {
 // The copy uses navigator.clipboard.writeText via a vanilla onclick — we
 // don't pull in Alpine.js for one button.
 templ formatBlock(f connstr.Format, in connstr.Inputs) {
-	<details style="margin-bottom:0.5rem;">
-		<summary><strong>{ f.Label }</strong> <small style="color:var(--pico-muted-color);">{ f.Description }</small></summary>
-		<div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:start;margin-top:0.5rem;">
-			<pre style="margin:0;overflow-x:auto;"><code>{ f.Render(in) }</code></pre>
+	<details>
+		<summary><strong>{ f.Label }</strong> <small class="muted">{ f.Description }</small></summary>
+		<div class="copy-field">
+			<pre><code>{ f.Render(in) }</code></pre>
 			<button
 				type="button"
 				class="secondary"
-				style="white-space:nowrap;padding:0.25rem 0.6rem;"
-				onclick={ copyToClipboard(f.Render(in)) }
-			>copy</button>
+				data-copy
+			>Copy</button>
 		</div>
 	</details>
-}
-
-// copyToClipboard generates the inline onclick handler. templ requires a
-// templ.ComponentScript (or a string via templ.SafeURL/templ.JSExpression)
-// — building the JS as a script returns escaping for free.
-script copyToClipboard(text string) {
-	navigator.clipboard.writeText(text).then(
-		() => { event.target.textContent = "copied"; setTimeout(() => event.target.textContent = "copy", 1200); },
-		() => { event.target.textContent = "failed"; }
-	);
 }
 
 // kv renders a single label/value row using semantic <dl> grouping inside
 // the <article> body.
 templ kv(k, v string) {
-	<div style="display:grid;grid-template-columns:12rem 1fr;gap:0.25rem;align-items:baseline;">
-		<small style="color:var(--pico-muted-color);">{ k }</small>
-		<code style="background:transparent;padding:0;">{ v }</code>
-	</div>
+	<dt>{ k }</dt>
+	<dd><code>{ v }</code></dd>
 }
 
 // TenantNotFound renders when /tenant/<bad-name> is requested. Distinct
@@ -154,7 +174,7 @@ templ TenantNotFound(name string) {
 		<article>
 			<header>tenant <code>{ name }</code> not found</header>
 			<p>No database with that name exists in the CNPG cluster.</p>
-			<p><a href="/" hx-boost="true">← back to tenant list</a></p>
+			<p><a href={ Route(ctx, "/") }>← back to tenant list</a></p>
 		</article>
 	}
 }
@@ -178,5 +198,5 @@ func connLimitStr(n int) string {
 // defaults, raw migrated DBs) fail this check, so the UI hides actions
 // that would only fail at the cluster level.
 func hasManagedRole(t *tenant.Tenant) bool {
-	return t.Owner != "" && t.Owner != "postgres"
+	return t.Owner == t.Name && t.Login
 }

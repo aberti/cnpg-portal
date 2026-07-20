@@ -74,7 +74,7 @@ func Drop(ctx context.Context, d Deps, app string, opts DropOptions) error {
 	logger.Info("role dropped")
 
 	// 4. Delete in-cluster Secret.
-	secretName := K8sSecretName(app)
+	secretName := d.Workspace.SecretName(app)
 	delErr := d.K8s.Clientset.CoreV1().Secrets(d.Workspace.Namespace).
 		Delete(ctx, secretName, metav1.DeleteOptions{})
 	if delErr != nil && !k8serrors.IsNotFound(delErr) {

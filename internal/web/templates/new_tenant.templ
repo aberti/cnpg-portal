@@ -7,7 +7,7 @@ templ NewTenantForm(prefill, errMsg string) {
 	@Layout("cnpg-portal — create tenant") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
 				<li>Create tenant</li>
 			</ul>
 		</nav>
@@ -17,14 +17,14 @@ templ NewTenantForm(prefill, errMsg string) {
 			if errMsg != "" {
 				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
 			}
-			<form method="post" action="/new">
+			<form method="post" action={ Route(ctx, "/new") }>
 				<label>
 					App / tenant name
 					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefill } placeholder="acme"/>
 				</label>
 				<button type="submit">Create tenant</button>
 			</form>
-			<p><small>Import instead: <a href="/new/import-dump">upload dump</a> · <a href="/new/import-url">from DATABASE_URL</a> (requires <code>pg_dump</code> where the server runs).</small></p>
+			<p><small>Import instead: <a href={ Route(ctx, "/new/import-dump") }>upload a custom-format dump</a>. Remote URL imports remain CLI-only.</small></p>
 		</article>
 	}
 }
@@ -35,7 +35,7 @@ templ NewTenantCreated(t *tenant.Tenant) {
 	@Layout("cnpg-portal — tenant created") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
 				<li>Tenant created</li>
 			</ul>
 		</nav>
@@ -46,7 +46,7 @@ templ NewTenantCreated(t *tenant.Tenant) {
 			@kv("secret", t.SecretName)
 			<p><small>Handle this as a secret. It is shown once and not persisted in UI state.</small></p>
 			<pre><code>{ t.DatabaseURL }</code></pre>
-			<p><a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true">Open tenant details</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + t.Name) }>Open tenant details</a></p>
 		</article>
 	}
 }

@@ -39,11 +39,11 @@ func newServeCmd() *cobra.Command {
 				}
 				cfg.BearerToken = strings.TrimSpace(string(b))
 			}
-			deps, err := buildDeps(workspaceFlag, kubeconfigFlag)
+			registry, err := buildClusterRegistry(workspaceFlag, kubeconfigFlag)
 			if err != nil {
 				return err
 			}
-			return web.Serve(c.Context(), cfg, deps, slog.Default())
+			return web.ServeClusters(c.Context(), cfg, registry, slog.Default())
 		},
 	}
 
@@ -59,6 +59,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&cfg.BearerToken, "bearer-token", "", "shared secret for Authorization: Bearer (prefer --bearer-token-file in prod)")
 	cmd.Flags().StringVar(&bearerTokenFile, "bearer-token-file", "", "read bearer token from file (e.g. Kubernetes Secret volumeMount)")
 	cmd.Flags().StringVar(&cfg.BearerIdentity, "bearer-identity", "", "email for audit logs when using bearer auth; bearer-authenticated requests are always admin")
+	cmd.Flags().StringSliceVar(&cfg.AllowedOrigins, "allowed-origin", nil, "public origin accepted for POST requests behind a proxy (repeatable, e.g. https://portal.example.com)")
 
 	return cmd
 }

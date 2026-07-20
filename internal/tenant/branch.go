@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/aberti/cnpg-portal/internal/pg"
 )
@@ -12,9 +13,10 @@ import (
 // DefaultBranchDestination returns a UI default destination name: src + "_dev",
 // shortened when necessary so the result stays IdentSafe and ≤ 63 characters.
 func DefaultBranchDestination(src string) string {
-	if !pg.IdentSafe(src) {
+	if !pg.DatabaseNameSafe(src) {
 		return ""
 	}
+	src = strings.ReplaceAll(src, "-", "_")
 	const suffix = "_dev"
 	maxPrefix := 63 - len(suffix)
 	base := src
@@ -51,7 +53,7 @@ func DefaultBranchDestination(src string) string {
 // will produce errors that pg_restore tolerates by default — caller can
 // inspect the returned Tenant.Database afterward).
 func Branch(ctx context.Context, d Deps, src, dst string) (*Tenant, error) {
-	if !pg.IdentSafe(src) {
+	if !pg.DatabaseNameSafe(src) {
 		return nil, fmt.Errorf("invalid source name %q", src)
 	}
 	if !pg.IdentSafe(dst) {

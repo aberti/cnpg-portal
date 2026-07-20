@@ -156,15 +156,15 @@ func TestAdminList_BearerAdminSurvivesFileReload(t *testing.T) {
 	}
 }
 
-func TestIdentityMiddleware_TailnetFallbackUsesXForwardedFor(t *testing.T) {
+func TestIdentityMiddleware_TailnetFallbackRejectsSpoofedXForwardedFor(t *testing.T) {
 	h := Router(tenant.Deps{}, discardLogger(), Auth{TailnetFallbackLogin: "op@example.com"})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "100.101.2.3, 10.0.0.1")
 	req.RemoteAddr = "10.42.0.1:5555"
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code == http.StatusForbidden {
-		t.Fatalf("expected first XFF hop to qualify as tailnet")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want forbidden because forwarding headers are untrusted", rec.Code)
 	}
 }
 
@@ -213,15 +213,17 @@ func TestRequireAdmin_AllowsAdmin(t *testing.T) {
 
 	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/backup", nil)
 	req.Header.Set(HeaderLogin, "admin@example.com")
+	req.Header.Set("Origin", srv.URL)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("do: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Admin passes the gate; backup handler then degrades on missing K8s deps.
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status = %d, want 200 (admin allowed, deps-degraded HTML body)", resp.StatusCode)
+	// Admin passes the gate; backup handler redirects to the list, which then
+	// degrades on missing PG deps.
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503 after admin passes the gate and follows redirect", resp.StatusCode)
 	}
 }
 

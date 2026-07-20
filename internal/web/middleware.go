@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -24,13 +25,33 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 			var buf [8]byte
 			_, _ = rand.Read(buf[:])
 			id = hex.EncodeToString(buf[:])
-		} else if len(id) > 64 {
-			id = id[:64]
+		} else {
+			id = sanitizeRequestID(id)
 		}
 		w.Header().Set("X-Request-Id", id)
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func sanitizeRequestID(id string) string {
+	if len(id) > 64 {
+		id = id[:64]
+	}
+	var b strings.Builder
+	b.Grow(len(id))
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.', r == ':':
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		var buf [8]byte
+		_, _ = rand.Read(buf[:])
+		return hex.EncodeToString(buf[:])
+	}
+	return b.String()
 }
 
 // RequestID returns the request id stored on ctx, or "" if absent.

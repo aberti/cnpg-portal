@@ -18,7 +18,7 @@ func TestParseListRow(t *testing.T) {
 		{
 			name: "trims whitespace",
 			row:  []string{"acme ", "  postgres", "0", " 0"},
-			want: Tenant{Name: "acme", Role: "acme", Database: "acme", SecretName: "acme-pg-credentials", Owner: "postgres", SizeBytes: 0, Connections: 0},
+			want: Tenant{Name: "acme", Role: "postgres", Database: "acme", SecretName: "acme-pg-credentials", Owner: "postgres", SizeBytes: 0, Connections: 0},
 			ok:   true,
 		},
 		{

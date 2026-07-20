@@ -12,8 +12,8 @@
 services:
   cnpg-portal:
     image: ghcr.io/aberti/cnpg-portal:latest
-    # Image is published as a public package (the source repo is private).
-    # First push out of CI is private by default; flip with:
+    # Image is published as a public package. First push out of CI may be
+    # private by default; flip with:
     #   gh api -X PATCH /user/packages/container/cnpg-portal -f visibility=public
     # `pull_policy: missing` lets `make image` (local builds) take effect
     # without compose insisting on a registry pull on every `up`. Use
@@ -29,9 +29,6 @@ services:
     # USER for this single-user tool; container is host-isolated only by
     # process boundary anyway since we use --network host.
     user: "1000:1000"
-    # PG_REPO_TOKEN for the PR-bot lives here; mode 0600 on the host.
-    env_file:
-      - ${HOME}/.config/cnpg-portal/env
     environment:
       SOPS_AGE_KEY_FILE: /run/secrets/age.key
       KUBECONFIG: /run/secrets/kubeconfig
@@ -58,12 +55,12 @@ services:
     volumes:
       # Workspace: writable so the tenant verbs can patch cluster.yaml +
       # add/remove SOPS-encrypted Secret files. Source of truth on host.
-      - ${HOME}/Projects/Abersite/PG:/workspace
+      - ${CNPG_PORTAL_WORKSPACE:-${HOME}/cnpg-workspace}:/workspace
       # Age private key: read-only, in-process SOPS decrypt only.
       - ${HOME}/.sops.age.key:/run/secrets/age.key:ro
       # Kubeconfig: read-only. Points at 127.0.0.1:6443, served by the
       # host SSH tunnel; --network host lets the container reach it.
-      - ${HOME}/Projects/Abersite/PG/.kube/config:/run/secrets/kubeconfig:ro
+      - ${CNPG_PORTAL_KUBECONFIG:-${HOME}/.kube/config}:/run/secrets/kubeconfig:ro
     healthcheck:
       test: ["CMD", "/usr/local/bin/cnpgctl", "version"]
       interval: 30s

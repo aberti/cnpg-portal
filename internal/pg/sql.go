@@ -33,13 +33,23 @@ type Conn struct {
 // SuperuserDB is the database psql connects to when none is specified.
 const SuperuserDB = "postgres"
 
-var identSafePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
+var (
+	identSafePattern        = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
+	databaseNameSafePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
+)
 
 // IdentSafe reports whether s is a Postgres identifier we will accept
 // without further quoting machinery. We restrict to lowercase ASCII so the
 // identifier survives both `EVS_DB` quirks and double-quoted SQL contexts.
 func IdentSafe(s string) bool {
 	return identSafePattern.MatchString(s)
+}
+
+// DatabaseNameSafe reports whether s is an existing database name that can
+// be passed as one argv value or escaped SQL literal. Unlike new portal
+// roles, externally managed databases may contain hyphens.
+func DatabaseNameSafe(s string) bool {
+	return databaseNameSafePattern.MatchString(s)
 }
 
 // QuoteIdent wraps a Postgres identifier in double quotes after a defensive
@@ -96,8 +106,8 @@ func (c *Conn) RunQuery(ctx context.Context, db, query string) ([][]string, erro
 // often reference the source role or postgres and fail when cloning to a new tenant.
 // Callers re-apply grants for dst after a successful restore (see tenant.Branch).
 func (c *Conn) PgDumpRestore(ctx context.Context, src, dst string) error {
-	if !IdentSafe(src) || !IdentSafe(dst) {
-		return fmt.Errorf("PgDumpRestore: src/dst must be IdentSafe")
+	if !DatabaseNameSafe(src) || !IdentSafe(dst) {
+		return fmt.Errorf("PgDumpRestore: src must be DatabaseNameSafe and dst must be IdentSafe")
 	}
 	pipe := fmt.Sprintf(
 		"pg_dump -U postgres -Fc -d %q | pg_restore -U postgres --no-owner --no-privileges --role=%q -d %q",
@@ -109,8 +119,8 @@ func (c *Conn) PgDumpRestore(ctx context.Context, src, dst string) error {
 
 // PgDump streams pg_dump -Fc <db> output to w. Suitable for download flows.
 func (c *Conn) PgDump(ctx context.Context, db string, w io.Writer) error {
-	if !IdentSafe(db) {
-		return fmt.Errorf("PgDump: db must be IdentSafe")
+	if !DatabaseNameSafe(db) {
+		return fmt.Errorf("PgDump: db must be DatabaseNameSafe")
 	}
 	var stderr bytes.Buffer
 	err := c.K8s.Exec(ctx, k8s.ExecOptions{

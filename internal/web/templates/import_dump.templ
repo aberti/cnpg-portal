@@ -5,8 +5,8 @@ templ ImportDumpForm(prefill, errMsg string) {
 	@Layout("cnpg-portal — import from dump") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href="/new">Create tenant</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/new") }>Create tenant</a></li>
 				<li>Import dump</li>
 			</ul>
 		</nav>
@@ -16,7 +16,7 @@ templ ImportDumpForm(prefill, errMsg string) {
 			if errMsg != "" {
 				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
 			}
-			<form method="post" action="/new/import-dump" enctype="multipart/form-data">
+			<form method="post" action={ Route(ctx, "/new/import-dump") } enctype="multipart/form-data">
 				<label>
 					App / tenant name
 					<input name="app" type="text" required minlength="1" maxlength="63" value={ prefill } placeholder="my_app_imported"/>

@@ -26,8 +26,9 @@ serve` on that host terminates inbound connections, injects identity
 headers, and exposes the portal at `https://<host>.<tailnet>.ts.net/`.
 
 The host owns the trust-relevant material: SOPS age key, GitOps
-workspace, kubeconfig with cluster access, optional GitHub PAT. The
-binary reads them from disk paths the operator already manages.
+workspace, and kubeconfig with cluster access. The binary reads them
+from disk paths the operator already manages. It does not require a
+source-control token.
 
 ## Rationale
 

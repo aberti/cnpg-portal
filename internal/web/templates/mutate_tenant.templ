@@ -6,8 +6,8 @@ templ BranchTenantForm(src, defaultDst, errMsg string) {
 	@Layout("cnpg-portal — branch tenant") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href={ templ.URL("/tenant/" + src) } hx-boost="true">{ src }</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/tenant/" + src) }>{ src }</a></li>
 				<li>Branch</li>
 			</ul>
 		</nav>
@@ -18,7 +18,7 @@ templ BranchTenantForm(src, defaultDst, errMsg string) {
 			if errMsg != "" {
 				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
 			}
-			<form method="post" action={ templ.URL("/tenant/" + src + "/branch") }>
+			<form method="post" action={ Route(ctx, "/tenant/" + src + "/branch") }>
 				<label>
 					Destination tenant
 					<input name="dst" type="text" required minlength="1" maxlength="63" value={ defaultDst } placeholder={ defaultDst } autocomplete="off"/>
@@ -38,7 +38,7 @@ templ BranchTenantCreated(src string, t *tenant.Tenant) {
 			@kv("secret", t.SecretName)
 			<p><small>Handle this as a secret. It is shown once and not persisted in UI state.</small></p>
 			<pre><code>{ t.DatabaseURL }</code></pre>
-			<p><a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true">Open destination details</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + t.Name) }>Open destination details</a></p>
 		</article>
 	}
 }
@@ -47,8 +47,8 @@ templ DropTenantForm(app, errMsg string) {
 	@Layout("cnpg-portal — drop tenant") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href={ templ.URL("/tenant/" + app) } hx-boost="true">{ app }</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/tenant/" + app) }>{ app }</a></li>
 				<li>Drop</li>
 			</ul>
 		</nav>
@@ -58,7 +58,7 @@ templ DropTenantForm(app, errMsg string) {
 			if errMsg != "" {
 				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
 			}
-			<form method="post" action={ templ.URL("/tenant/" + app + "/drop") }>
+			<form method="post" action={ Route(ctx, "/tenant/" + app + "/drop") }>
 				<label>
 					Type tenant name to confirm
 					<input name="confirm" type="text" required placeholder={ app }/>
@@ -75,7 +75,7 @@ templ DropTenantDone(app string) {
 			<header>Tenant dropped</header>
 			@kv("app", app)
 			<p><small>S3 backups are not purged by this action.</small></p>
-			<p><a href="/" hx-boost="true">Back to tenants</a></p>
+			<p><a href={ Route(ctx, "/") }>Back to tenants</a></p>
 		</article>
 	}
 }
@@ -84,8 +84,8 @@ templ RotateTenantForm(app, errMsg string) {
 	@Layout("cnpg-portal — rotate credentials") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href={ templ.URL("/tenant/" + app) } hx-boost="true">{ app }</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/tenant/" + app) }>{ app }</a></li>
 				<li>Rotate</li>
 			</ul>
 		</nav>
@@ -95,7 +95,7 @@ templ RotateTenantForm(app, errMsg string) {
 			if errMsg != "" {
 				<p><small style="color:var(--pico-color-red-600);">{ errMsg }</small></p>
 			}
-			<form method="post" action={ templ.URL("/tenant/" + app + "/rotate") }>
+			<form method="post" action={ Route(ctx, "/tenant/" + app + "/rotate") }>
 				<label>
 					Type tenant name to confirm
 					<input name="confirm" type="text" required placeholder={ app } autocomplete="off"/>
@@ -110,8 +110,8 @@ templ SyncTenantForm(dst string, sources []string, errMsg string) {
 	@Layout("cnpg-portal — sync tenant") {
 		<nav aria-label="breadcrumb">
 			<ul>
-				<li><a href="/" hx-boost="true">Tenants</a></li>
-				<li><a href={ templ.URL("/tenant/" + dst) } hx-boost="true">{ dst }</a></li>
+				<li><a href={ Route(ctx, "/") }>Tenants</a></li>
+				<li><a href={ Route(ctx, "/tenant/" + dst) }>{ dst }</a></li>
 				<li>Sync</li>
 			</ul>
 		</nav>
@@ -125,7 +125,7 @@ templ SyncTenantForm(dst string, sources []string, errMsg string) {
 			if len(sources) == 0 {
 				<p><small>No other tenants are available to sync from.</small></p>
 			} else {
-				<form method="post" action={ templ.URL("/tenant/" + dst + "/sync") }>
+				<form method="post" action={ Route(ctx, "/tenant/" + dst + "/sync") }>
 					<label>
 						Source tenant
 						<select name="src" required>
@@ -153,7 +153,7 @@ templ SyncTenantDone(src, dst string) {
 			@kv("source", src)
 			@kv("destination", dst)
 			<p><small>Destination credentials were preserved. Existing apps using <code>{ dst }</code>'s DSN will see the new data on next query.</small></p>
-			<p><a href={ templ.URL("/tenant/" + dst) } hx-boost="true">Open destination details</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + dst) }>Open destination details</a></p>
 		</article>
 	}
 }
@@ -167,7 +167,7 @@ templ RotateTenantDone(t *tenant.Tenant) {
 			<p><small>Handle this URL as a secret. It is shown once and not persisted in UI state.</small></p>
 			<pre><code>{ t.DatabaseURL }</code></pre>
 			<p><small>Commit the updated SOPS file in <code>secrets/pg/</code> to keep GitOps in sync. Restart the consuming app to pick up the new password.</small></p>
-			<p><a href={ templ.URL("/tenant/" + t.Name) } hx-boost="true">Back to tenant</a></p>
+			<p><a href={ Route(ctx, "/tenant/" + t.Name) }>Back to tenant</a></p>
 		</article>
 	}
 }

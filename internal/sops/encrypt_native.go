@@ -46,7 +46,7 @@ func EncryptYAMLForRecipient(plain []byte, recipient string) ([]byte, error) {
 			KeyGroups: []getsops.KeyGroup{
 				{masterKey},
 			},
-			Version: "3.9.2", // align with the sops binary version pinned in PG/.mise.toml
+			Version: "3.12.2",
 		},
 	}
 

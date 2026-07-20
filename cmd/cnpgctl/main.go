@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var clusterFlag string
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "cnpgctl:", err)
@@ -27,6 +29,7 @@ func run() error {
 }
 
 func newRootCmd() *cobra.Command {
+	clusterFlag = ""
 	var logLevel string
 	var logFormat string
 
@@ -47,6 +50,7 @@ func newRootCmd() *cobra.Command {
 
 	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "log level: debug|info|warn|error")
 	cmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format: text|json")
+	cmd.PersistentFlags().StringVar(&clusterFlag, "cluster", "", "CNPG cluster ID from the workspace catalog (defaults to $CNPG_PORTAL_CLUSTER or default_cluster)")
 
 	cmd.AddCommand(
 		newVersionCmd(),

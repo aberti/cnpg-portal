@@ -10,7 +10,7 @@ import (
 )
 
 func TestTenantDetailDegradedWhenCredsNil(t *testing.T) {
-	tn := &tenant.Tenant{Name: "acme", Database: "acme", SecretName: "acme-pg-credentials"}
+	tn := &tenant.Tenant{Name: "acme", Database: "acme", Owner: "acme", Login: true, SecretName: "acme-pg-credentials"}
 	// Admin sees the connection-strings panel (with degraded notice when
 	// creds is nil); viewer never sees it at all.
 	var b strings.Builder
@@ -33,7 +33,7 @@ func TestTenantDetailDegradedWhenCredsNil(t *testing.T) {
 }
 
 func TestTenantDetailHidesConnStringsFromViewer(t *testing.T) {
-	tn := &tenant.Tenant{Name: "acme", Database: "acme", SecretName: "acme-pg-credentials"}
+	tn := &tenant.Tenant{Name: "acme", Database: "acme", Owner: "acme", Login: true, SecretName: "acme-pg-credentials"}
 	creds := &tenant.Credentials{
 		Host: "pg-primary-rw.pg.svc.cluster.local", Port: 5432,
 		Database: "acme", User: "acme", Password: "secret123",
@@ -52,7 +52,7 @@ func TestTenantDetailHidesConnStringsFromViewer(t *testing.T) {
 }
 
 func TestTenantDetailRendersAllFormats(t *testing.T) {
-	tn := &tenant.Tenant{Name: "acme", Database: "acme", SecretName: "acme-pg-credentials"}
+	tn := &tenant.Tenant{Name: "acme", Database: "acme", Owner: "acme", Login: true, SecretName: "acme-pg-credentials"}
 	creds := &tenant.Credentials{
 		Host:     "pg-primary-rw.pg.svc.cluster.local",
 		Port:     5432,
@@ -76,7 +76,7 @@ func TestTenantDetailRendersAllFormats(t *testing.T) {
 		t.Error("expected URL form in output")
 	}
 	// Copy button should be present once per format.
-	if got := strings.Count(out, ">copy</button>"); got != len(connstr.All) {
+	if got := strings.Count(out, ">Copy</button>"); got != len(connstr.All) {
 		t.Errorf("expected %d copy buttons, got %d", len(connstr.All), got)
 	}
 	// Password must NOT leak as plaintext into a URL via wrong escaping —
@@ -84,5 +84,47 @@ func TestTenantDetailRendersAllFormats(t *testing.T) {
 	// correct. Smoke-test just confirms no double-encoding.
 	if strings.Contains(out, "secret123secret123") {
 		t.Error("password appears doubled — likely a render bug")
+	}
+}
+
+func TestTenantDetailKeepsClusterScopeAndHidesSharedOwnerCredentials(t *testing.T) {
+	tn := &tenant.Tenant{
+		Name: "legacy-reporting", Database: "legacy-reporting", Owner: "app_owner",
+		SecretName: "legacy-reporting-pg-credentials",
+	}
+	ctx := WithPageContext(context.Background(), PageContext{
+		BasePath:    "/clusters/analytics",
+		ClusterID:   "analytics",
+		ClusterName: "postgres-analytics",
+		DisplayName: "Analytics",
+		Namespace:   "pg",
+	})
+	var b strings.Builder
+	if err := TenantDetail(tn, nil, true).Render(ctx, &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	out := b.String()
+	if !strings.Contains(out, `href="/clusters/analytics/"`) {
+		t.Error("tenant detail lost the active cluster scope")
+	}
+	if strings.Contains(out, "/tenant/legacy-reporting/rotate") {
+		t.Error("shared-owner database exposed password rotation")
+	}
+	if !strings.Contains(out, "Externally managed database") {
+		t.Error("shared-owner database lacks an explicit unmanaged badge")
+	}
+	for _, unsupported := range []string{"/sync", "/rotate", "/restore", "/drop"} {
+		if strings.Contains(out, "/tenant/legacy-reporting"+unsupported) {
+			t.Errorf("externally managed database exposed unsupported action %s", unsupported)
+		}
+	}
+	if !strings.Contains(out, "/tenant/legacy-reporting/branch") {
+		t.Error("externally managed database lost the safe branch action")
+	}
+	if !strings.Contains(out, "legacy_reporting_dev") {
+		t.Error("CLI branch destination was not normalized to a role-safe name")
+	}
+	if !strings.Contains(out, "cnpgctl --cluster analytics") {
+		t.Error("CLI snippets do not identify the active cluster")
 	}
 }

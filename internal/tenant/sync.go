@@ -33,7 +33,7 @@ type SyncOptions struct {
 // Re-running with the same src/dst is safe: the destination is wiped and
 // reloaded each time.
 func Sync(ctx context.Context, d Deps, src, dst string, opts SyncOptions) error {
-	if !pg.IdentSafe(src) {
+	if !pg.DatabaseNameSafe(src) {
 		return fmt.Errorf("invalid source name %q", src)
 	}
 	if !pg.IdentSafe(dst) {

@@ -27,6 +27,28 @@ func TestIdentSafe(t *testing.T) {
 	}
 }
 
+func TestDatabaseNameSafe(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"billing_api", true},
+		{"stg-example1", true},
+		{"a-b_c2", true},
+		{"", false},
+		{"1database", false},
+		{"UPPER", false},
+		{"a/b", false},
+		{"a;DROP DATABASE postgres", false},
+		{string(make([]byte, 64)), false},
+	}
+	for _, tc := range cases {
+		if got := DatabaseNameSafe(tc.in); got != tc.want {
+			t.Errorf("DatabaseNameSafe(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestQuoteIdent(t *testing.T) {
 	q, err := QuoteIdent("acme")
 	if err != nil || q != `"acme"` {
